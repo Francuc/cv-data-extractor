@@ -4,7 +4,11 @@ import { ExtractedData } from '@/types/data';
 // Configure PDF.js worker
 const initializeWorker = () => {
   try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    // Use a local worker file instead of CDN
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.mjs',
+      import.meta.url
+    ).toString();
     console.log('PDF.js worker initialized successfully');
   } catch (error) {
     console.error('Error initializing PDF.js worker:', error);
