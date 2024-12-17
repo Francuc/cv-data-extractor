@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
+import { ExtractedDataDebug } from '@/components/ExtractedDataDebug';
 import { useFileProcessor } from '@/hooks/useFileProcessor';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ const Index = () => {
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
+    console.log('Files selected:', newFiles.map(f => ({ name: f.name, type: f.type })));
   };
 
   const handleProcess = async () => {
@@ -21,6 +23,7 @@ const Index = () => {
       toast.error('Please select files first');
       return;
     }
+    console.log('Starting processing of files...');
     await processFiles(files);
   };
 
@@ -34,6 +37,7 @@ const Index = () => {
       toast.success('Data exported successfully');
     } catch (error) {
       toast.error('Failed to export data');
+      console.error('Export error:', error);
     }
   };
 
@@ -72,7 +76,10 @@ const Index = () => {
         />
 
         {processedData && processedData.length > 0 && (
-          <DataPreview data={processedData} />
+          <>
+            <DataPreview data={processedData} />
+            <ExtractedDataDebug data={processedData} />
+          </>
         )}
       </div>
     </div>
