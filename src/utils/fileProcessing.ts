@@ -47,21 +47,16 @@ const standardizePhoneNumber = (phoneNumber: string): string => {
     cleaned = cleaned.substring(2);
   }
   
-  // If it starts with 0, keep it as is - this is the change
-  if (cleaned.startsWith('0') && cleaned.length === 11) {
-    return cleaned;
+  // If it starts with 0, remove it
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
   }
   
-  // If it's a 10-digit number starting with 7, add leading 0
-  if (cleaned.startsWith('7') && cleaned.length === 10) {
-    return '0' + cleaned;
-  }
-  
-  return cleaned.length >= 10 ? cleaned : '';
+  // Verify we have exactly 10 digits for UK mobile numbers
+  return cleaned.length === 10 ? cleaned : '';
 };
 
 const phoneNumberPatterns = [
-  // UK mobile formats
   /0[0-9]{10}/g,                   // 11 digits starting with 0
   /07[0-9]{9}/g,                   // UK mobile specific
   /\+447[0-9]{9}/g,               // International format
@@ -96,13 +91,36 @@ const extractPhoneNumber = (text: string): string => {
   return '';
 };
 
+const capitalizeFirstLetter = (str: string): string => {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+};
+
+const isValidName = (name: string): boolean => {
+  // Check if the string contains only letters and basic name characters
+  const namePattern = /^[A-Za-z\s'-]+$/;
+  
+  // Name should be at least 2 characters long and match the pattern
+  return name.length >= 2 && namePattern.test(name);
+};
+
 const extractDataFromText = (text: string): ExtractedData => {
   console.log('Extracting data from text:', text.substring(0, 100) + '...');
   
-  // Simple extraction logic for name (can be enhanced)
-  const words = text.split(/\s+/);
-  const firstName = words[0] || '';
-  const surname = words[1] || '';
+  // Split text into words and filter out empty strings
+  const words = text.split(/\s+/).filter(word => word.length > 0);
+  
+  // Find first valid name
+  let firstName = '';
+  let surname = '';
+  
+  for (let i = 0; i < words.length - 1; i++) {
+    if (isValidName(words[i]) && isValidName(words[i + 1])) {
+      firstName = capitalizeFirstLetter(words[i]);
+      surname = capitalizeFirstLetter(words[i + 1]);
+      break;
+    }
+  }
   
   const phoneNumber = extractPhoneNumber(text);
   
