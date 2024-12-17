@@ -1,15 +1,25 @@
 import { ExtractedData } from '@/types/data';
-import { google } from 'googleapis';
-import { authenticate } from '@google-cloud/local-auth';
+
+declare global {
+  interface Window {
+    gapi: any;
+  }
+}
+
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
 export const exportDataToSheets = async (data: ExtractedData[]) => {
   try {
-    const auth = await authenticate({
-      keyfilePath: 'credentials.json',
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    // Initialize the Google Sheets API
+    await window.gapi.client.init({
+      apiKey: 'YOUR_API_KEY', // Replace with your API key
+      discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+      clientId: 'YOUR_CLIENT_ID', // Replace with your client ID
+      scope: SCOPES,
     });
 
-    const sheets = google.sheets({ version: 'v4', auth });
+    // Sign in the user
+    await window.gapi.auth2.getAuthInstance().signIn();
 
     const values = data.map((item) => [
       item.firstName,
@@ -21,11 +31,11 @@ export const exportDataToSheets = async (data: ExtractedData[]) => {
     // You'll need to replace this with your actual spreadsheet ID
     const spreadsheetId = 'YOUR_SPREADSHEET_ID';
 
-    await sheets.spreadsheets.values.append({
+    await window.gapi.client.sheets.spreadsheets.values.append({
       spreadsheetId,
       range: 'Sheet1!A1:D1',
       valueInputOption: 'RAW',
-      requestBody: {
+      resource: {
         values: [
           ['First Name', 'Surname', 'Phone Number', 'File Name'],
           ...values,

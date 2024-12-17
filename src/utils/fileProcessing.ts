@@ -1,19 +1,27 @@
-import * as pdfParse from 'pdf-parse';
-import * as mammoth from 'mammoth';
 import { ExtractedData } from '@/types/data';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set worker path for PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const extractTextFromPDF = async (file: File): Promise<string> => {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfData = await pdfParse(Buffer.from(arrayBuffer));
-  return pdfData.text;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map((item: any) => item.str).join(' ');
+    fullText += pageText + ' ';
+  }
+  
+  return fullText;
 };
 
 const extractTextFromDOCX = async (file: File): Promise<string> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const result = await mammoth.extractRawText({
-    arrayBuffer: arrayBuffer,
-  });
-  return result.value;
+  // For DOCX files, we'll need to inform users that browser limitations prevent direct DOCX parsing
+  throw new Error('DOCX parsing is not supported in the browser version');
 };
 
 const extractTextFromTXT = async (file: File): Promise<string> => {
@@ -51,8 +59,7 @@ export const extractDataFromFile = async (
         break;
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
-        text = await extractTextFromDOCX(file);
-        break;
+        throw new Error('DOCX/DOC files are not supported in the browser version');
       case 'text/plain':
       case 'text/rtf':
         text = await extractTextFromTXT(file);
