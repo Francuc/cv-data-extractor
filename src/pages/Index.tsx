@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
+import { ProcessingTimer } from '@/components/ProcessingTimer';
 import { ReviewList } from '@/components/ReviewList';
 import { useFileProcessor } from '@/hooks/useFileProcessor';
 import { Button } from '@/components/ui/button';
@@ -51,7 +52,7 @@ const Index = () => {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">CV Data Extractor</h1>
           <p className="mt-2 text-gray-600">
-            Upload CV files to extract and export data to Google Sheets
+            Upload CV files to extract and process data
           </p>
         </div>
 
@@ -70,6 +71,11 @@ const Index = () => {
           totalFiles={files.length}
           processedFiles={processedData?.length || 0}
           isProcessing={isProcessing}
+        />
+
+        <ProcessingTimer
+          isProcessing={isProcessing}
+          totalFiles={files.length}
         />
 
         {processedData && processedData.length > 0 && (
