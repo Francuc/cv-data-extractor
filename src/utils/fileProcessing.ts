@@ -57,11 +57,23 @@ const extractTextFromTXT = async (file: File): Promise<string> => {
 const extractTextFromRTF = async (file: File): Promise<string> => {
   try {
     const text = await file.text();
-    // Remove RTF formatting tags using regex
-    return text.replace(/[{\\\}]|[^}]*?}/g, '')
-               .replace(/\\[a-z]+/g, '')
-               .replace(/\\\d+/g, '')
-               .trim();
+    // Enhanced RTF cleaning regex patterns
+    const cleanedText = text
+      // Remove RTF headers and control words
+      .replace(/[{\\\}]|[^}]*?}/g, '')
+      // Remove control sequences
+      .replace(/\\[a-z]+[-]?[0-9]*/g, '')
+      // Remove Unicode characters
+      .replace(/\\u[0-9]+\?/g, '')
+      // Remove special characters
+      .replace(/\\'[0-9a-f]{2}/g, '')
+      // Remove remaining backslashes
+      .replace(/\\/g, '')
+      // Remove multiple spaces
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return cleanedText;
   } catch (error) {
     console.error('Error extracting text from RTF:', error);
     throw error;
