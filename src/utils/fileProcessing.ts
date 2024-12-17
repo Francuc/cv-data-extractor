@@ -2,10 +2,9 @@ import { ExtractedData } from '@/types/data';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
-const initializeWorker = async () => {
+const initializeWorker = () => {
   try {
-    const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
     console.log('PDF.js worker initialized successfully');
   } catch (error) {
     console.error('Error initializing PDF.js worker:', error);
@@ -36,15 +35,40 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
   }
 };
 
+const standardizePhoneNumber = (phoneNumber: string): string => {
+  // Remove all non-digit characters and any international prefix
+  let cleaned = phoneNumber.replace(/\D/g, '');
+  
+  // Remove UK prefix if present (44 or 0)
+  if (cleaned.startsWith('44')) {
+    cleaned = cleaned.substring(2);
+  }
+  if (cleaned.startsWith('0')) {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // Validate that it starts with 7 and has the correct length
+  if (cleaned.startsWith('7') && cleaned.length === 10) {
+    return cleaned;
+  }
+  
+  return '';
+};
+
 const extractDataFromText = (text: string): ExtractedData => {
   console.log('Extracting data from text:', text.substring(0, 100) + '...');
   
-  // Simple extraction logic (can be enhanced)
+  // Simple extraction logic for name (can be enhanced)
   const words = text.split(/\s+/);
   const firstName = words[0] || '';
   const surname = words[1] || '';
-  const phoneMatch = text.match(/(\+?\d{1,3}[-.]?\d{3}[-.]?\d{3}[-.]?\d{4})/);
-  const phoneNumber = phoneMatch ? phoneMatch[1] : '';
+  
+  // Enhanced phone number extraction
+  const phoneRegex = /(?:(?:\+44|0044|\(0\)|0)(?:\s*[1-9])?[.\-\s]*)?7(?:[1-9]\d{2}|\d[1-9]\d|[1-9]\d[1-9])[.\-\s]*\d{3}[.\-\s]*\d{3}/g;
+  const phoneMatches = text.match(phoneRegex);
+  const phoneNumber = phoneMatches ? standardizePhoneNumber(phoneMatches[0]) : '';
+
+  console.log('Extracted phone number:', phoneNumber);
 
   return {
     firstName,
@@ -58,7 +82,7 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData | n
   console.log('Processing file:', file.name, 'type:', file.type);
   
   try {
-    await initializeWorker();
+    initializeWorker();
     
     let text = '';
     if (file.type === 'application/pdf') {
