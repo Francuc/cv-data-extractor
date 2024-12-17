@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { ExtractedData } from '@/types/data';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
