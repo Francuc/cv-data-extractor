@@ -18,8 +18,10 @@ export const useFileProcessor = () => {
         }
       }
       setProcessedData(results);
+      return results;
     } catch (error) {
       console.error('Error processing files:', error);
+      return [];
     } finally {
       setIsProcessing(false);
     }

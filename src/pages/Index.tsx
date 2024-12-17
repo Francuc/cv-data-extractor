@@ -25,7 +25,22 @@ const Index = () => {
       return;
     }
     console.log('Starting processing of files...');
-    await processFiles(files);
+    const results = await processFiles(files);
+    
+    // Separate complete and incomplete records
+    const complete: ExtractedData[] = [];
+    const incomplete: ExtractedData[] = [];
+    
+    results.forEach(item => {
+      if (!item.firstName || !item.surname || !item.phoneNumber) {
+        incomplete.push(item);
+      } else {
+        complete.push(item);
+      }
+    });
+    
+    setProcessedData(complete);
+    setReviewData(prev => [...prev, ...incomplete]);
   };
 
   const handleReview = (index: number) => {
