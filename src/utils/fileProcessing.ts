@@ -1,41 +1,10 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import { ExtractedData } from '@/types/data';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
 
-// Configure PDF.js worker
-const initializeWorker = () => {
-  try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.mjs',
-      import.meta.url
-    ).toString();
-    console.log('PDF.js worker initialized successfully');
-  } catch (error) {
-    console.error('Error initializing PDF.js worker:', error);
-  }
-};
-
-const extractTextFromPDF = async (file: File): Promise<string> => {
-  console.log('Starting PDF extraction for file:', file.name);
-  
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    console.log('PDF loaded successfully, number of pages:', pdf.numPages);
-
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
-    }
-
-    console.log('Text extraction completed');
-    return fullText;
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    throw error;
-  }
+const capitalizeFirstLetter = (str: string): string => {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
 const standardizePhoneNumber = (phoneNumber: string): string => {
@@ -47,7 +16,7 @@ const standardizePhoneNumber = (phoneNumber: string): string => {
     cleaned = cleaned.substring(2);
   }
   
-  // If it starts with 0, keep it as is - this is the change
+  // If it starts with 0, keep it as is
   if (cleaned.startsWith('0') && cleaned.length === 11) {
     return cleaned;
   }
@@ -75,68 +44,64 @@ const phoneNumberPatterns = [
 ];
 
 const extractPhoneNumber = (text: string): string => {
-  console.log('Attempting to extract phone number with multiple patterns');
-  
   for (const pattern of phoneNumberPatterns) {
     const matches = text.match(pattern);
     if (matches) {
-      console.log('Found matches with pattern:', pattern, matches);
-      
       for (const match of matches) {
         const standardized = standardizePhoneNumber(match);
         if (standardized) {
-          console.log('Successfully extracted phone number:', standardized);
           return standardized;
         }
       }
     }
   }
-  
-  console.log('No valid phone number found after trying all patterns');
   return '';
 };
 
-const extractDataFromText = (text: string): ExtractedData => {
-  console.log('Extracting data from text:', text.substring(0, 100) + '...');
+const extractDataFromFile = (text: string): ExtractedData => {
+  // Extract name parts (assuming format "FirstName Surname")
+  const nameMatch = text.match(/([A-Za-z]+)\s+([A-Za-z]+)/);
+  let firstName = '';
+  let surname = '';
   
-  // Simple extraction logic for name (can be enhanced)
-  const words = text.split(/\s+/);
-  const firstName = words[0] || '';
-  const surname = words[1] || '';
-  
+  if (nameMatch) {
+    firstName = capitalizeFirstLetter(nameMatch[1]);
+    surname = capitalizeFirstLetter(nameMatch[2]);
+  }
+
+  // Extract phone number
   const phoneNumber = extractPhoneNumber(text);
-  
+
   return {
     firstName,
     surname,
     phoneNumber,
-    fileName: '', // This will be set by the caller
+    fileName: '',
     rawText: text
   };
 };
 
-export const extractDataFromFile = async (file: File): Promise<ExtractedData | null> => {
-  console.log('Processing file:', file.name, 'type:', file.type);
-  
+export const processFile = async (file: File): Promise<ExtractedData> => {
   try {
-    initializeWorker();
-    
     let text = '';
+    
     if (file.type === 'application/pdf') {
-      text = await extractTextFromPDF(file);
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
+      const content = await page.getTextContent();
+      text = content.items.map((item: any) => item.str).join(' ');
+    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      text = result.value;
     } else {
-      // Handle other file types if needed
-      console.warn('Unsupported file type:', file.type);
-      return null;
+      throw new Error('Unsupported file type');
     }
 
-    if (!text) {
-      console.warn('No text extracted from file');
-      return null;
-    }
-
-    const extractedData = extractDataFromText(text);
-    console.log('Extracted data:', extractedData);
+    const extractedData = extractDataFromFile(text);
+    extractedData.fileName = file.name;
+    
     return extractedData;
   } catch (error) {
     console.error('Error processing file:', error);
