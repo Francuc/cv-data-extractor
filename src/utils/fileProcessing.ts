@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import * as mammoth from 'mammoth';
 import { ExtractedData } from '@/types/data';
 
 // Configure PDF.js worker
@@ -34,6 +35,20 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
     return fullText;
   } catch (error) {
     console.error('Error extracting text from PDF:', error);
+    throw error;
+  }
+};
+
+const extractTextFromDOCX = async (file: File): Promise<string> => {
+  console.log('Starting DOCX extraction for file:', file.name);
+  
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    console.log('DOCX text extraction completed');
+    return result.value;
+  } catch (error) {
+    console.error('Error extracting text from DOCX:', error);
     throw error;
   }
 };
@@ -91,6 +106,36 @@ const extractPhoneNumber = (text: string): string => {
   return '';
 };
 
+export const extractDataFromFile = async (file: File): Promise<ExtractedData | null> => {
+  console.log('Processing file:', file.name, 'type:', file.type);
+  
+  try {
+    let text = '';
+    
+    if (file.type === 'application/pdf') {
+      initializeWorker();
+      text = await extractTextFromPDF(file);
+    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      text = await extractTextFromDOCX(file);
+    } else {
+      console.warn('Unsupported file type:', file.type);
+      return null;
+    }
+
+    if (!text) {
+      console.warn('No text extracted from file');
+      return null;
+    }
+
+    const extractedData = extractDataFromText(text);
+    console.log('Extracted data:', extractedData);
+    return extractedData;
+  } catch (error) {
+    console.error('Error processing file:', error);
+    throw error;
+  }
+};
+
 const capitalizeFirstLetter = (str: string): string => {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -131,33 +176,4 @@ const extractDataFromText = (text: string): ExtractedData => {
     fileName: '', // This will be set by the caller
     rawText: text
   };
-};
-
-export const extractDataFromFile = async (file: File): Promise<ExtractedData | null> => {
-  console.log('Processing file:', file.name, 'type:', file.type);
-  
-  try {
-    initializeWorker();
-    
-    let text = '';
-    if (file.type === 'application/pdf') {
-      text = await extractTextFromPDF(file);
-    } else {
-      // Handle other file types if needed
-      console.warn('Unsupported file type:', file.type);
-      return null;
-    }
-
-    if (!text) {
-      console.warn('No text extracted from file');
-      return null;
-    }
-
-    const extractedData = extractDataFromText(text);
-    console.log('Extracted data:', extractedData);
-    return extractedData;
-  } catch (error) {
-    console.error('Error processing file:', error);
-    throw error;
-  }
 };
