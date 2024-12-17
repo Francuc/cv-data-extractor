@@ -4,7 +4,6 @@ import { DataPreview } from '@/components/DataPreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { ReviewList } from '@/components/ReviewList';
 import { useFileProcessor } from '@/hooks/useFileProcessor';
-import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ExtractedData } from '@/types/data';
@@ -13,7 +12,6 @@ const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [reviewData, setReviewData] = useState<ExtractedData[]>([]);
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
-  const { exportToSheets, isExporting } = useGoogleSheets();
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
@@ -27,20 +25,6 @@ const Index = () => {
     }
     console.log('Starting processing of files...');
     await processFiles(files);
-  };
-
-  const handleExport = async () => {
-    if (!processedData || processedData.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-    try {
-      await exportToSheets(processedData);
-      toast.success('Data exported successfully');
-    } catch (error) {
-      toast.error('Failed to export data');
-      console.error('Export error:', error);
-    }
   };
 
   const handleReview = (index: number) => {
@@ -73,19 +57,12 @@ const Index = () => {
 
         <FileUploader onFilesSelected={handleFilesSelected} />
 
-        <div className="flex justify-center gap-4">
+        <div className="flex justify-center">
           <Button
             onClick={handleProcess}
             disabled={isProcessing || files.length === 0}
           >
             {isProcessing ? 'Processing...' : 'Process Files'}
-          </Button>
-          <Button
-            onClick={handleExport}
-            disabled={isExporting || !processedData || processedData.length === 0}
-            variant="outline"
-          >
-            {isExporting ? 'Exporting...' : 'Export to Sheets'}
           </Button>
         </div>
 
