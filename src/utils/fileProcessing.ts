@@ -60,53 +60,45 @@ const standardizePhoneNumber = (phoneNumber: string): string => {
   return '';
 };
 
-export const extractSpecificField = (field: keyof ExtractedData, text: string): string => {
-  switch (field) {
-    case 'phoneNumber':
-      // Try different phone number patterns
-      const patterns = [
-        // Standard UK mobile format with optional prefixes
-        /(?:(?:\+44|0044|\(0\)|0)?\s*)?(?:7\d{3}|\(?07\d{3}\)?)\s*\d{3}\s*\d{3}/g,
-        // Simple 11-digit format starting with 0
-        /0\d{10}/g,
-        // Any 10 consecutive digits starting with 7
-        /7\d{9}/g,
-        // Looser pattern for numbers with various separators
-        /[0-9+\s()-]{10,14}/g
-      ];
+const phoneNumberPatterns = [
+  // Standard UK mobile format with optional prefixes
+  /(?:(?:\+44|0044|\(0\)|0)?\s*)?(?:7\d{3}|\(?07\d{3}\)?)\s*\d{3}\s*\d{3}/g,
+  // Simple 11-digit format starting with 0
+  /0\d{10}/g,
+  // Any 10 consecutive digits starting with 7
+  /7\d{9}/g,
+  // Numbers with various separators
+  /[0-9+\s()-]{10,14}/g,
+  // More specific UK mobile patterns
+  /(?:\+44|0044|0)7\d{9}/g,
+  /(?:07|\+447|\(\+44\)7)\d{9}/g,
+  // Looser patterns
+  /\b\d{11}\b/g,
+  /\b\d{10}\b/g,
+  /(?:\+\d{2}|0)?\s*7\d{9}/g,
+  /[0-9]{10,11}/g
+];
 
-      for (const pattern of patterns) {
-        const matches = text.match(pattern);
-        if (matches) {
-          for (const match of matches) {
-            const standardized = standardizePhoneNumber(match);
-            if (standardized) return standardized;
-          }
+const extractPhoneNumber = (text: string): string => {
+  console.log('Attempting to extract phone number with multiple patterns');
+  
+  for (const pattern of phoneNumberPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      console.log('Found matches with pattern:', pattern, matches);
+      
+      for (const match of matches) {
+        const standardized = standardizePhoneNumber(match);
+        if (standardized) {
+          console.log('Successfully extracted phone number:', standardized);
+          return standardized;
         }
       }
-      return '';
-
-    case 'firstName':
-    case 'surname':
-      // Enhanced name extraction logic
-      const nameLines = text.split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
-      
-      // Look for lines that look like names (capital letters, no numbers)
-      const nameLine = nameLines.find(line => 
-        /^[A-Z\s]{2,}$/i.test(line) && !/\d/.test(line)
-      );
-      
-      if (nameLine) {
-        const names = nameLine.trim().split(/\s+/);
-        return field === 'firstName' ? names[0] || '' : names[1] || '';
-      }
-      return '';
-
-    default:
-      return '';
+    }
   }
+  
+  console.log('No valid phone number found after trying all patterns');
+  return '';
 };
 
 const extractDataFromText = (text: string): ExtractedData => {
@@ -117,24 +109,7 @@ const extractDataFromText = (text: string): ExtractedData => {
   const firstName = words[0] || '';
   const surname = words[1] || '';
   
-  // Enhanced phone number extraction with various formats
-  const phoneRegex = /(?:(?:\+44|0044|\(0\)|0)?\s*)?(?:7\d{3}|\(?07\d{3}\)?)\s*\d{3}\s*\d{3}/g;
-  const phoneMatches = text.match(phoneRegex);
-  
-  let phoneNumber = '';
-  if (phoneMatches) {
-    console.log('Found phone matches:', phoneMatches);
-    // Try each match until we find a valid one
-    for (const match of phoneMatches) {
-      const standardized = standardizePhoneNumber(match);
-      if (standardized) {
-        phoneNumber = standardized;
-        break;
-      }
-    }
-  }
-  
-  console.log('Extracted phone number:', phoneNumber);
+  const phoneNumber = extractPhoneNumber(text);
   
   return {
     firstName,
@@ -173,3 +148,5 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData | n
     throw error;
   }
 };
+
+export { extractDataFromFile, extractSpecificField };
