@@ -205,6 +205,26 @@ const isValidName = (name: string): boolean => {
   return name.length >= 2 && namePattern.test(name);
 };
 
+const extractNameFromFileName = (fileName: string): { firstName: string; surname: string } | null => {
+  // Remove file extension
+  const nameWithoutExtension = fileName.replace(/\.[^/.]+$/, '');
+  
+  // Split by common separators
+  const parts = nameWithoutExtension.split(/[-_\s]+/);
+  
+  if (parts.length >= 2) {
+    // Capitalize first letter of each part
+    const firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+    const surname = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
+    
+    if (isValidName(firstName) && isValidName(surname)) {
+      return { firstName, surname };
+    }
+  }
+  
+  return null;
+};
+
 const extractDataFromText = (text: string): ExtractedData => {
   const words = text.split(/\s+/).filter(word => word.length > 0);
   
@@ -259,6 +279,17 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData | n
     }
 
     const extractedData = extractDataFromText(text);
+    
+    // Try to extract names from filename if no names were found in content
+    if (!extractedData.firstName || !extractedData.surname) {
+      const namesFromFileName = extractNameFromFileName(file.name);
+      if (namesFromFileName) {
+        extractedData.firstName = namesFromFileName.firstName;
+        extractedData.surname = namesFromFileName.surname;
+      }
+    }
+    
+    extractedData.fileName = file.name;
     return extractedData;
   } catch (error) {
     console.error('Error processing file:', error);
