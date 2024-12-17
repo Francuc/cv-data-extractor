@@ -1,11 +1,79 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from 'react';
+import { FileUploader } from '@/components/FileUploader';
+import { DataPreview } from '@/components/DataPreview';
+import { ProcessingStatus } from '@/components/ProcessingStatus';
+import { useFileProcessor } from '@/hooks/useFileProcessor';
+import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const Index = () => {
+  const [files, setFiles] = useState<File[]>([]);
+  const { processedData, isProcessing, processFiles } = useFileProcessor();
+  const { exportToSheets, isExporting } = useGoogleSheets();
+
+  const handleFilesSelected = (newFiles: File[]) => {
+    setFiles(newFiles);
+  };
+
+  const handleProcess = async () => {
+    if (files.length === 0) {
+      toast.error('Please select files first');
+      return;
+    }
+    await processFiles(files);
+  };
+
+  const handleExport = async () => {
+    if (!processedData || processedData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    try {
+      await exportToSheets(processedData);
+      toast.success('Data exported successfully');
+    } catch (error) {
+      toast.error('Failed to export data');
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900">CV Data Extractor</h1>
+          <p className="mt-2 text-gray-600">
+            Upload CV files to extract and export data to Google Sheets
+          </p>
+        </div>
+
+        <FileUploader onFilesSelected={handleFilesSelected} />
+
+        <div className="flex justify-center gap-4">
+          <Button
+            onClick={handleProcess}
+            disabled={isProcessing || files.length === 0}
+          >
+            {isProcessing ? 'Processing...' : 'Process Files'}
+          </Button>
+          <Button
+            onClick={handleExport}
+            disabled={isExporting || !processedData || processedData.length === 0}
+            variant="outline"
+          >
+            {isExporting ? 'Exporting...' : 'Export to Sheets'}
+          </Button>
+        </div>
+
+        <ProcessingStatus
+          totalFiles={files.length}
+          processedFiles={processedData?.length || 0}
+          isProcessing={isProcessing}
+        />
+
+        {processedData && processedData.length > 0 && (
+          <DataPreview data={processedData} />
+        )}
       </div>
     </div>
   );
