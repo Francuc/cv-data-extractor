@@ -42,41 +42,36 @@ const standardizePhoneNumber = (phoneNumber: string): string => {
   // Remove all non-digit characters
   let cleaned = phoneNumber.replace(/\D/g, '');
   
-  // Handle +44 prefix
+  // If it starts with 44, remove it
   if (cleaned.startsWith('44')) {
     cleaned = cleaned.substring(2);
   }
   
-  // Handle 0 prefix
-  if (cleaned.startsWith('0')) {
-    cleaned = cleaned.substring(1);
-  }
-  
-  // Validate that it starts with 7 and has exactly 10 digits
-  if (cleaned.startsWith('7') && cleaned.length === 10) {
+  // If it starts with 0, keep it as is - this is the change
+  if (cleaned.startsWith('0') && cleaned.length === 11) {
     return cleaned;
   }
   
-  return '';
+  // If it's a 10-digit number starting with 7, add leading 0
+  if (cleaned.startsWith('7') && cleaned.length === 10) {
+    return '0' + cleaned;
+  }
+  
+  return cleaned.length >= 10 ? cleaned : '';
 };
 
 const phoneNumberPatterns = [
-  // Standard UK mobile format with optional prefixes
-  /(?:(?:\+44|0044|\(0\)|0)?\s*)?(?:7\d{3}|\(?07\d{3}\)?)\s*\d{3}\s*\d{3}/g,
-  // Simple 11-digit format starting with 0
-  /0\d{10}/g,
-  // Any 10 consecutive digits starting with 7
-  /7\d{9}/g,
-  // Numbers with various separators
-  /[0-9+\s()-]{10,14}/g,
-  // More specific UK mobile patterns
-  /(?:\+44|0044|0)7\d{9}/g,
-  /(?:07|\+447|\(\+44\)7)\d{9}/g,
-  // Looser patterns
-  /\b\d{11}\b/g,
-  /\b\d{10}\b/g,
-  /(?:\+\d{2}|0)?\s*7\d{9}/g,
-  /[0-9]{10,11}/g
+  // UK mobile formats
+  /0[0-9]{10}/g,                   // 11 digits starting with 0
+  /07[0-9]{9}/g,                   // UK mobile specific
+  /\+447[0-9]{9}/g,               // International format
+  /00447[0-9]{9}/g,               // Alternative international
+  /[0-9]{11}/g,                   // Any 11 digits
+  /07[0-9]\d\s?\d{3}\s?\d{3}/g,   // Spaced format
+  /\b\d{11}\b/g,                  // Word boundary 11 digits
+  /\b\d{10}\b/g,                  // Word boundary 10 digits
+  /[0-9+\s()-]{10,14}/g,          // Various separators
+  /(?:\+44|0044|0)7\d{9}/g        // Various UK prefixes
 ];
 
 const extractPhoneNumber = (text: string): string => {
@@ -116,7 +111,7 @@ const extractDataFromText = (text: string): ExtractedData => {
     surname,
     phoneNumber,
     fileName: '', // This will be set by the caller
-    rawText: text // Store the raw text for later re-extraction
+    rawText: text
   };
 };
 
