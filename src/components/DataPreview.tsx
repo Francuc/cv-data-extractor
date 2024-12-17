@@ -20,8 +20,8 @@ interface DataPreviewProps {
 export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
   const copyToClipboard = () => {
     const formattedData = data
-      .map(item => `${item.firstName} ${item.surname}\n${item.phoneNumber}`)
-      .join('\n\n');
+      .map(item => `${item.surname}\t${item.firstName}\t\t${item.phoneNumber}`)
+      .join('\n');
     
     navigator.clipboard.writeText(formattedData).then(() => {
       toast.success('Data copied to clipboard');
