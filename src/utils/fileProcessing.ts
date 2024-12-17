@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { ExtractedData } from '@/types/data';
 import { PDFWorker } from 'pdfjs-dist/types/src/display/worker_options';
 
 // Configure PDF.js worker
