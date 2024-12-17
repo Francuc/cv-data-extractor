@@ -40,18 +40,20 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
 };
 
 const standardizePhoneNumber = (phoneNumber: string): string => {
-  // Remove all non-digit characters and any international prefix
+  // Remove all non-digit characters
   let cleaned = phoneNumber.replace(/\D/g, '');
   
-  // Remove UK prefix if present (44 or 0)
+  // Handle +44 prefix
   if (cleaned.startsWith('44')) {
     cleaned = cleaned.substring(2);
   }
+  
+  // Handle 0 prefix
   if (cleaned.startsWith('0')) {
     cleaned = cleaned.substring(1);
   }
   
-  // Validate that it starts with 7 and has the correct length
+  // Validate that it starts with 7 and has exactly 10 digits
   if (cleaned.startsWith('7') && cleaned.length === 10) {
     return cleaned;
   }
@@ -67,18 +69,30 @@ const extractDataFromText = (text: string): ExtractedData => {
   const firstName = words[0] || '';
   const surname = words[1] || '';
   
-  // Enhanced phone number extraction
-  const phoneRegex = /(?:(?:\+44|0044|\(0\)|0)(?:\s*[1-9])?[.\-\s]*)?7(?:[1-9]\d{2}|\d[1-9]\d|[1-9]\d[1-9])[.\-\s]*\d{3}[.\-\s]*\d{3}/g;
+  // Enhanced phone number extraction with various formats
+  const phoneRegex = /(?:(?:\+44|0044|\(0\)|0)?\s*)?(?:7\d{3}|\(?07\d{3}\)?)\s*\d{3}\s*\d{3}/g;
   const phoneMatches = text.match(phoneRegex);
-  const phoneNumber = phoneMatches ? standardizePhoneNumber(phoneMatches[0]) : '';
-
+  
+  let phoneNumber = '';
+  if (phoneMatches) {
+    console.log('Found phone matches:', phoneMatches);
+    // Try each match until we find a valid one
+    for (const match of phoneMatches) {
+      const standardized = standardizePhoneNumber(match);
+      if (standardized) {
+        phoneNumber = standardized;
+        break;
+      }
+    }
+  }
+  
   console.log('Extracted phone number:', phoneNumber);
-
+  
   return {
     firstName,
     surname,
     phoneNumber,
-    fileName: ''  // This will be set by the caller
+    fileName: '' // This will be set by the caller
   };
 };
 
