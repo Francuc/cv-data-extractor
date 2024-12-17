@@ -2,7 +2,6 @@ import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import { ExtractedData } from '@/types/data';
 
-// Configure PDF.js worker
 const initializeWorker = () => {
   try {
     pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -150,23 +149,23 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData | n
   try {
     let text = '';
     
-    switch (file.type) {
-      case 'application/pdf':
-        initializeWorker();
-        text = await extractTextFromPDF(file);
-        break;
-      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-        text = await extractTextFromDOCX(file);
-        break;
-      case 'text/plain':
-        text = await extractTextFromTXT(file);
-        break;
-      case 'text/rtf':
-        text = await extractTextFromRTF(file);
-        break;
-      default:
-        console.warn('Unsupported file type:', file.type);
-        return null;
+    // Check both file.type and file extension for RTF files
+    const isRTF = file.type === 'application/rtf' || 
+                  file.type === 'text/rtf' ||
+                  file.name.toLowerCase().endsWith('.rtf');
+    
+    if (file.type === 'application/pdf') {
+      initializeWorker();
+      text = await extractTextFromPDF(file);
+    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      text = await extractTextFromDOCX(file);
+    } else if (file.type === 'text/plain') {
+      text = await extractTextFromTXT(file);
+    } else if (isRTF) {
+      text = await extractTextFromRTF(file);
+    } else {
+      console.warn('Unsupported file type:', file.type);
+      return null;
     }
 
     if (!text) {
