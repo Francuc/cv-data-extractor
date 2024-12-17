@@ -1,11 +1,8 @@
 import { ExtractedData } from '@/types/data';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Import worker from the package instead of CDN
-import { PDFWorker } from 'pdfjs-dist/legacy/build/pdf.worker.entry';
-
-// Configure PDF.js to use the worker
-pdfjsLib.GlobalWorkerOptions.workerPort = new PDFWorker();
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 const extractTextFromPDF = async (file: File): Promise<string> => {
   const arrayBuffer = await file.arrayBuffer();
