@@ -58,7 +58,7 @@ const extractPhoneNumber = (text: string): string => {
   return '';
 };
 
-export const extractDataFromFile = (text: string): ExtractedData => {
+const extractDataFromFile = (text: string): ExtractedData => {
   // Extract name parts (assuming format "FirstName Surname")
   const nameMatch = text.match(/([A-Za-z]+)\s+([A-Za-z]+)/);
   let firstName = '';

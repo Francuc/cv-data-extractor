@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ExtractedData } from '@/types/data';
-import { processFile } from '@/utils/fileProcessing';
+import { extractDataFromFile } from '@/utils/fileProcessing';
 
 export const useFileProcessor = () => {
   const [processedData, setProcessedData] = useState<ExtractedData[]>([]);
@@ -12,7 +12,7 @@ export const useFileProcessor = () => {
 
     try {
       for (const file of files) {
-        const data = await processFile(file);
+        const data = await extractDataFromFile(file);
         if (data) {
           results.push({ ...data, fileName: file.name });
         }
