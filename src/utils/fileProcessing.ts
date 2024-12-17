@@ -148,5 +148,3 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData | n
     throw error;
   }
 };
-
-export { extractDataFromFile, extractSpecificField };
