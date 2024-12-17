@@ -4,11 +4,8 @@ import { ExtractedData } from '@/types/data';
 // Configure PDF.js worker
 const initializeWorker = () => {
   try {
-    const workerUrl = new URL(
-      'pdfjs-dist/build/pdf.worker.min.js',
-      import.meta.url
-    );
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.href;
+    // Import worker directly from node_modules
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
     console.log('PDF.js worker initialized successfully');
   } catch (error) {
     console.error('Error initializing PDF.js worker:', error);
