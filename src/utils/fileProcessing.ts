@@ -2,10 +2,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { ExtractedData } from '@/types/data';
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString();
+const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const extractTextFromPDF = async (file: File): Promise<string> => {
   console.log('Starting PDF extraction for file:', file.name);
