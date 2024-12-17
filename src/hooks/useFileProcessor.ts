@@ -25,5 +25,5 @@ export const useFileProcessor = () => {
     }
   };
 
-  return { processedData, isProcessing, processFiles };
+  return { processedData, setProcessedData, isProcessing, processFiles };
 };

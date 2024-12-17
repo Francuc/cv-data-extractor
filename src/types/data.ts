@@ -3,4 +3,5 @@ export interface ExtractedData {
   surname: string;
   phoneNumber: string;
   fileName: string;
+  rawText: string;
 }

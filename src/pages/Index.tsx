@@ -7,10 +7,11 @@ import { useFileProcessor } from '@/hooks/useFileProcessor';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { ExtractedData } from '@/types/data';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
-  const { processedData, isProcessing, processFiles } = useFileProcessor();
+  const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const { exportToSheets, isExporting } = useGoogleSheets();
 
   const handleFilesSelected = (newFiles: File[]) => {
@@ -39,6 +40,14 @@ const Index = () => {
       toast.error('Failed to export data');
       console.error('Export error:', error);
     }
+  };
+
+  const handleDataUpdate = (index: number, updatedData: Partial<ExtractedData>) => {
+    if (!processedData) return;
+    
+    const newData = [...processedData];
+    newData[index] = { ...newData[index], ...updatedData };
+    setProcessedData(newData);
   };
 
   return (
@@ -77,7 +86,10 @@ const Index = () => {
 
         {processedData && processedData.length > 0 && (
           <>
-            <DataPreview data={processedData} />
+            <DataPreview 
+              data={processedData} 
+              onDataUpdate={handleDataUpdate}
+            />
             <ExtractedDataDebug data={processedData} />
           </>
         )}
