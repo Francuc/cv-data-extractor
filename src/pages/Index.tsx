@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
-import { ExtractedDataDebug } from '@/components/ExtractedDataDebug';
+import { ReviewList } from '@/components/ReviewList';
 import { useFileProcessor } from '@/hooks/useFileProcessor';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { ExtractedData } from '@/types/data';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
+  const [reviewData, setReviewData] = useState<ExtractedData[]>([]);
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const { exportToSheets, isExporting } = useGoogleSheets();
 
@@ -40,6 +41,16 @@ const Index = () => {
       toast.error('Failed to export data');
       console.error('Export error:', error);
     }
+  };
+
+  const handleReview = (index: number) => {
+    if (!processedData) return;
+    
+    const itemToReview = processedData[index];
+    setReviewData(prev => [...prev, itemToReview]);
+    
+    const newProcessedData = processedData.filter((_, i) => i !== index);
+    setProcessedData(newProcessedData);
   };
 
   const handleDataUpdate = (index: number, updatedData: Partial<ExtractedData>) => {
@@ -85,14 +96,14 @@ const Index = () => {
         />
 
         {processedData && processedData.length > 0 && (
-          <>
-            <DataPreview 
-              data={processedData} 
-              onDataUpdate={handleDataUpdate}
-            />
-            <ExtractedDataDebug data={processedData} />
-          </>
+          <DataPreview 
+            data={processedData} 
+            onDataUpdate={handleDataUpdate}
+            onReview={handleReview}
+          />
         )}
+
+        <ReviewList data={reviewData} />
       </div>
     </div>
   );
