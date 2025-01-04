@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExtractedData } from '@/types/data';
+import { ExtractedData, ProcessingResult } from '@/types/data';
 import { extractDataFromFile } from '@/utils/fileProcessing';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -7,7 +7,7 @@ export const useFileProcessor = () => {
   const [processedData, setProcessedData] = useState<ExtractedData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const processFiles = async (files: File[]) => {
+  const processFiles = async (files: File[]): Promise<ProcessingResult> => {
     setIsProcessing(true);
     const results: ExtractedData[] = [];
 
@@ -55,10 +55,16 @@ export const useFileProcessor = () => {
       }
 
       setProcessedData(results);
-      return results;
+      return {
+        data: results,
+        folderLink: uploadData?.folderLink
+      };
     } catch (error) {
       console.error('Error processing files:', error);
-      return [];
+      return {
+        data: [],
+        folderLink: undefined
+      };
     } finally {
       setIsProcessing(false);
     }

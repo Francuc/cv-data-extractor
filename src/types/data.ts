@@ -6,3 +6,8 @@ export interface ExtractedData {
   rawText: string;
   fileLink?: string;
 }
+
+export interface ProcessingResult {
+  data: ExtractedData[];
+  folderLink?: string;
+}

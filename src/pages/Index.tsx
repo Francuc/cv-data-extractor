@@ -34,18 +34,17 @@ const Index = () => {
 
   const handleProcess = async () => {
     console.log('Starting processing of files...');
-    const results = await processFiles(files);
+    const result = await processFiles(files);
     
-    // Update folder link if available in the response
-    if (results.folderLink) {
-      setFolderLink(results.folderLink);
+    if (result.folderLink) {
+      setFolderLink(result.folderLink);
     }
     
     // Separate complete and incomplete records
     const complete: ExtractedData[] = [];
     const incomplete: ExtractedData[] = [];
     
-    results.forEach(item => {
+    result.data.forEach(item => {
       if (!item.firstName || !item.surname || !item.phoneNumber) {
         incomplete.push(item);
       } else {
