@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { google } from "https://deno.land/x/google_auth@v0.8.2/mod.ts";
+import { GoogleAuth } from "https://deno.land/x/google_auth@v0.4.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +17,7 @@ serve(async (req) => {
     console.log(`Processing ${operation} operation`)
 
     // Initialize Google Auth
-    const auth = new google.auth.GoogleAuth({
+    const auth = new GoogleAuth({
       credentials: {
         client_id: Deno.env.get("GOOGLE_CLIENT_ID"),
         client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
@@ -30,8 +30,8 @@ serve(async (req) => {
     });
 
     const client = await auth.getClient();
-    const drive = google.drive({ version: 'v3', auth: client });
-    const sheets = google.sheets({ version: 'v4', auth: client });
+    const drive = await auth.drive({ version: 'v3' });
+    const sheets = await auth.sheets({ version: 'v4' });
 
     if (operation === 'createSheet') {
       console.log('Creating new Google Sheet')
