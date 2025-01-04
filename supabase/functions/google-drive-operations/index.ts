@@ -14,10 +14,6 @@ serve(async (req) => {
     const { operation, files } = await req.json()
     console.log(`Processing ${operation} operation`)
 
-    // Create folder name with current date and time
-    const now = new Date();
-    const folderName = `CV_Files_${now.toISOString().replace(/[:.]/g, '-')}`;
-    
     // Get access token using refresh token
     const credentials = {
       client_id: Deno.env.get("GOOGLE_CLIENT_ID"),
@@ -55,7 +51,10 @@ serve(async (req) => {
         throw new Error('No file data provided')
       }
 
-      // Create folder
+      // Create a single folder for the batch
+      const now = new Date();
+      const folderName = `CV_Batch_${now.toISOString().replace(/[:.]/g, '-')}`;
+      
       console.log('Creating folder:', folderName);
       const folderMetadata = {
         name: folderName,
@@ -89,6 +88,10 @@ serve(async (req) => {
 
       // Upload file
       const { fileName, fileContent, mimeType } = files;
+      console.log('Uploading file:', fileName, 'Type:', mimeType);
+
+      // Convert base64 string back to binary
+      const binaryContent = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
       
       // Create file metadata
       const fileMetadata = {
@@ -106,9 +109,24 @@ serve(async (req) => {
         'Content-Type: application/json\r\n\r\n' +
         JSON.stringify(fileMetadata) +
         delimiter +
-        'Content-Type: ' + mimeType + '\r\n\r\n' +
-        fileContent +
-        close_delim;
+        'Content-Type: ' + mimeType + '\r\n\r\n';
+
+      // Combine metadata and file content
+      const requestParts = [
+        new TextEncoder().encode(multipartRequestBody),
+        binaryContent,
+        new TextEncoder().encode(close_delim)
+      ];
+      
+      const requestBody = new Uint8Array(
+        requestParts.reduce((acc, part) => acc + part.length, 0)
+      );
+      
+      let offset = 0;
+      for (const part of requestParts) {
+        requestBody.set(part, offset);
+        offset += part.length;
+      }
 
       // Upload file to Google Drive
       const fileResponse = await fetch(
@@ -119,9 +137,15 @@ serve(async (req) => {
             'Authorization': `Bearer ${access_token}`,
             'Content-Type': `multipart/related; boundary=${boundary}`,
           },
-          body: multipartRequestBody,
+          body: requestBody,
         }
       );
+
+      if (!fileResponse.ok) {
+        const errorText = await fileResponse.text();
+        console.error('Upload failed:', errorText);
+        throw new Error(`Failed to upload file: ${errorText}`);
+      }
 
       const file = await fileResponse.json();
       console.log('File uploaded with ID:', file.id);
