@@ -18,16 +18,40 @@ interface DataPreviewProps {
 }
 
 export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
-  const copyToClipboard = () => {
-    const formattedData = data
-      .map(item => `${item.surname}\t${item.firstName}\t${item.phoneNumber}\t${item.fileLink || 'No link available'}`)
-      .join('\n');
-    
-    navigator.clipboard.writeText(formattedData).then(() => {
+  const copyToClipboard = async () => {
+    try {
+      // Check if we have clipboard permissions
+      if (!navigator.clipboard) {
+        throw new Error('Clipboard API not available');
+      }
+
+      const formattedData = data
+        .map(item => `${item.surname}\t${item.firstName}\t${item.phoneNumber}\t${item.fileLink || 'No link available'}`)
+        .join('\n');
+      
+      await navigator.clipboard.writeText(formattedData);
       toast.success('Data copied to clipboard');
-    }).catch(() => {
-      toast.error('Failed to copy data');
-    });
+    } catch (error) {
+      console.error('Clipboard error:', error);
+      
+      // Fallback method using textarea
+      try {
+        const textarea = document.createElement('textarea');
+        const formattedData = data
+          .map(item => `${item.surname}\t${item.firstName}\t${item.phoneNumber}\t${item.fileLink || 'No link available'}`)
+          .join('\n');
+        
+        textarea.value = formattedData;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        toast.success('Data copied to clipboard');
+      } catch (fallbackError) {
+        console.error('Fallback clipboard error:', fallbackError);
+        toast.error('Unable to copy data to clipboard. Please try manually selecting and copying the data.');
+      }
+    }
   };
 
   return (
