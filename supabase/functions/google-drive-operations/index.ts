@@ -37,18 +37,10 @@ serve(async (req) => {
 
     const { access_token } = await tokenResponse.json();
     
-    if (operation === 'createSheet') {
-      console.log('Creating new Google Sheet')
-      return new Response(
-        JSON.stringify({ sheetId: 'mock-sheet-id' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (operation === 'uploadFile') {
-      console.log('Starting file upload process')
-      if (!files) {
-        throw new Error('No file data provided')
+    if (operation === 'uploadFiles') {
+      console.log('Starting batch file upload process')
+      if (!files || !Array.isArray(files)) {
+        throw new Error('No files data provided or invalid format')
       }
 
       // Create a single folder for the batch
@@ -86,96 +78,98 @@ serve(async (req) => {
         }),
       });
 
-      // Upload file
-      const { fileName, fileContent, mimeType } = files;
-      console.log('Uploading file:', fileName, 'Type:', mimeType);
+      // Upload all files to the same folder
+      const uploadedFiles = await Promise.all(files.map(async ({ fileName, fileContent, mimeType }) => {
+        console.log('Uploading file:', fileName, 'Type:', mimeType);
 
-      try {
-        // Convert base64 string back to binary
-        const binaryContent = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
-        
-        // Create file metadata
-        const fileMetadata = {
-          name: fileName,
-          parents: [folder.id]
-        };
+        try {
+          // Convert base64 string back to binary
+          const binaryContent = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
+          
+          // Create file metadata
+          const fileMetadata = {
+            name: fileName,
+            parents: [folder.id]
+          };
 
-        // Create multipart request
-        const boundary = '-------314159265358979323846';
-        const delimiter = "\r\n--" + boundary + "\r\n";
-        const close_delim = "\r\n--" + boundary + "--";
+          // Create multipart request
+          const boundary = '-------314159265358979323846';
+          const delimiter = "\r\n--" + boundary + "\r\n";
+          const close_delim = "\r\n--" + boundary + "--";
 
-        const multipartRequestBody =
-          delimiter +
-          'Content-Type: application/json\r\n\r\n' +
-          JSON.stringify(fileMetadata) +
-          delimiter +
-          'Content-Type: ' + mimeType + '\r\n\r\n';
+          const multipartRequestBody =
+            delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            JSON.stringify(fileMetadata) +
+            delimiter +
+            'Content-Type: ' + mimeType + '\r\n\r\n';
 
-        // Combine metadata and file content
-        const requestParts = [
-          new TextEncoder().encode(multipartRequestBody),
-          binaryContent,
-          new TextEncoder().encode(close_delim)
-        ];
-        
-        const requestBody = new Uint8Array(
-          requestParts.reduce((acc, part) => acc + part.length, 0)
-        );
-        
-        let offset = 0;
-        for (const part of requestParts) {
-          requestBody.set(part, offset);
-          offset += part.length;
-        }
+          // Combine metadata and file content
+          const requestParts = [
+            new TextEncoder().encode(multipartRequestBody),
+            binaryContent,
+            new TextEncoder().encode(close_delim)
+          ];
+          
+          const requestBody = new Uint8Array(
+            requestParts.reduce((acc, part) => acc + part.length, 0)
+          );
+          
+          let offset = 0;
+          for (const part of requestParts) {
+            requestBody.set(part, offset);
+            offset += part.length;
+          }
 
-        // Upload file to Google Drive
-        const fileResponse = await fetch(
-          'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', 
-          {
+          // Upload file to Google Drive
+          const fileResponse = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', 
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${access_token}`,
+                'Content-Type': `multipart/related; boundary=${boundary}`,
+              },
+              body: requestBody,
+            }
+          );
+
+          if (!fileResponse.ok) {
+            const errorText = await fileResponse.text();
+            console.error('Upload failed:', errorText);
+            throw new Error(`Failed to upload file: ${errorText}`);
+          }
+
+          const file = await fileResponse.json();
+          console.log('File uploaded with ID:', file.id);
+
+          // Set file permissions to anyone with the link can view
+          await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${access_token}`,
-              'Content-Type': `multipart/related; boundary=${boundary}`,
+              'Content-Type': 'application/json',
             },
-            body: requestBody,
-          }
-        );
+            body: JSON.stringify({
+              role: 'reader',
+              type: 'anyone',
+            }),
+          });
 
-        if (!fileResponse.ok) {
-          const errorText = await fileResponse.text();
-          console.error('Upload failed:', errorText);
-          throw new Error(`Failed to upload file: ${errorText}`);
+          return file.webViewLink;
+        } catch (error) {
+          console.error('Error processing file:', error);
+          throw new Error(`Failed to process file ${fileName}: ${error.message}`);
         }
+      }));
 
-        const file = await fileResponse.json();
-        console.log('File uploaded with ID:', file.id);
-
-        // Set file permissions to anyone with the link can view
-        await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            role: 'reader',
-            type: 'anyone',
-          }),
-        });
-
-        return new Response(
-          JSON.stringify({ 
-            fileId: file.id,
-            webViewLink: file.webViewLink,
-            folderLink: `https://drive.google.com/drive/folders/${folder.id}`
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      } catch (error) {
-        console.error('Error processing file:', error);
-        throw new Error(`Failed to decode base64: ${error.message}`);
-      }
+      return new Response(
+        JSON.stringify({ 
+          fileLinks: uploadedFiles,
+          folderLink: `https://drive.google.com/drive/folders/${folder.id}`
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     throw new Error(`Unknown operation: ${operation}`)

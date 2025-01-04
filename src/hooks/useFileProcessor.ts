@@ -12,39 +12,48 @@ export const useFileProcessor = () => {
     const results: ExtractedData[] = [];
 
     try {
-      for (const file of files) {
-        const data = await extractDataFromFile(file);
-        if (data) {
-          // Convert file to base64
+      // Convert all files to base64 first
+      const filesData = await Promise.all(
+        files.map(async (file) => {
+          const data = await extractDataFromFile(file);
           const buffer = await file.arrayBuffer();
           const base64Content = btoa(
             new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
           );
 
-          // Upload file to Google Drive
-          const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
-            body: {
-              operation: 'uploadFile',
-              files: {
-                fileName: file.name,
-                fileContent: base64Content,
-                mimeType: file.type
-              }
-            }
-          });
+          return {
+            fileName: file.name,
+            fileContent: base64Content,
+            mimeType: file.type,
+            extractedData: data
+          };
+        })
+      );
 
-          if (uploadError) {
-            console.error('Error uploading file:', uploadError);
-            results.push({ ...data, fileName: file.name });
-          } else {
-            results.push({
-              ...data,
-              fileName: file.name,
-              fileLink: uploadData.webViewLink
-            });
-          }
+      // Upload all files in one request
+      const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
+        body: {
+          operation: 'uploadFiles',
+          files: filesData
         }
+      });
+
+      if (uploadError) {
+        console.error('Error uploading files:', uploadError);
+        filesData.forEach(({ extractedData, fileName }) => {
+          results.push({ ...extractedData, fileName });
+        });
+      } else {
+        // Match the uploaded files with their data
+        filesData.forEach(({ extractedData, fileName }, index) => {
+          results.push({
+            ...extractedData,
+            fileName,
+            fileLink: uploadData.fileLinks[index]
+          });
+        });
       }
+
       setProcessedData(results);
       return results;
     } catch (error) {
