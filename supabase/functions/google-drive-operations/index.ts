@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { google } from "https://deno.land/x/googleapis@v118.0.0/googleapis.ts";
+import { google } from "https://esm.sh/@googleapis/drive@8.0.0"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +24,10 @@ serve(async (req) => {
       scopes: ['https://www.googleapis.com/auth/drive.file']
     });
 
+    console.log("Auth initialized");
+
     const drive = google.drive({ version: 'v3', auth });
+    console.log("Drive client created");
 
     if (operation === 'createSheet') {
       console.log('Creating new Google Sheet')
@@ -35,7 +38,7 @@ serve(async (req) => {
     }
 
     if (operation === 'uploadFile') {
-      console.log('Uploading file to Google Drive')
+      console.log('Starting file upload process')
       if (!files) {
         throw new Error('No file data provided')
       }
@@ -46,62 +49,77 @@ serve(async (req) => {
       
       console.log('Creating folder:', folderName);
       
-      const folderMetadata = {
-        name: folderName,
-        mimeType: 'application/vnd.google-apps.folder'
-      };
+      try {
+        const folderMetadata = {
+          name: folderName,
+          mimeType: 'application/vnd.google-apps.folder'
+        };
 
-      const folder = await drive.files.create({
-        requestBody: folderMetadata,
-        fields: 'id'
-      });
+        const folder = await drive.files.create({
+          requestBody: folderMetadata,
+          fields: 'id'
+        });
 
-      const folderId = folder.data.id;
+        console.log('Folder created with ID:', folder.data.id);
 
-      // Make the folder accessible via link
-      await drive.permissions.create({
-        fileId: folderId,
-        requestBody: {
-          role: 'reader',
-          type: 'anyone'
-        }
-      });
+        const folderId = folder.data.id;
 
-      const { fileName, fileContent, mimeType } = files;
-      
-      const fileMetadata = {
-        name: fileName,
-        parents: [folderId]
-      };
+        // Make the folder accessible via link
+        await drive.permissions.create({
+          fileId: folderId,
+          requestBody: {
+            role: 'reader',
+            type: 'anyone'
+          }
+        });
 
-      const media = {
-        mimeType: mimeType,
-        body: fileContent
-      };
+        console.log('Folder permissions set');
 
-      const file = await drive.files.create({
-        requestBody: fileMetadata,
-        media: media,
-        fields: 'id, webViewLink'
-      });
+        const { fileName, fileContent, mimeType } = files;
+        
+        const fileMetadata = {
+          name: fileName,
+          parents: [folderId]
+        };
 
-      // Make the file accessible via link
-      await drive.permissions.create({
-        fileId: file.data.id,
-        requestBody: {
-          role: 'reader',
-          type: 'anyone'
-        }
-      });
+        console.log('Uploading file:', fileName);
 
-      return new Response(
-        JSON.stringify({ 
+        const media = {
+          mimeType: mimeType,
+          body: fileContent
+        };
+
+        const file = await drive.files.create({
+          requestBody: fileMetadata,
+          media: media,
+          fields: 'id, webViewLink'
+        });
+
+        console.log('File uploaded with ID:', file.data.id);
+
+        // Make the file accessible via link
+        await drive.permissions.create({
           fileId: file.data.id,
-          webViewLink: file.data.webViewLink,
-          folderLink: `https://drive.google.com/drive/folders/${folderId}`
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+          requestBody: {
+            role: 'reader',
+            type: 'anyone'
+          }
+        });
+
+        console.log('File permissions set');
+
+        return new Response(
+          JSON.stringify({ 
+            fileId: file.data.id,
+            webViewLink: file.data.webViewLink,
+            folderLink: `https://drive.google.com/drive/folders/${folderId}`
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (uploadError) {
+        console.error('Error during file upload:', uploadError);
+        throw uploadError;
+      }
     }
 
     throw new Error(`Unknown operation: ${operation}`)
@@ -109,7 +127,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, stack: error.stack }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500
