@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +14,45 @@ serve(async (req) => {
   try {
     const { operation, files } = await req.json()
     console.log(`Processing ${operation} operation`)
+
+    if (operation === 'getAuthUrl') {
+      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
+      const redirectUri = 'http://localhost:5173/auth/callback';
+      const scope = encodeURIComponent('https://www.googleapis.com/auth/drive.file');
+      
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+      
+      return new Response(
+        JSON.stringify({ authUrl }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (operation === 'getRefreshToken') {
+      const { code } = await req.json();
+      
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: Deno.env.get("GOOGLE_CLIENT_ID")!,
+          client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET")!,
+          redirect_uri: 'http://localhost:5173/auth/callback',
+          grant_type: 'authorization_code',
+          code,
+        }),
+      });
+
+      const tokenData = await tokenResponse.json();
+      console.log('Refresh token obtained:', tokenData.refresh_token);
+      
+      return new Response(
+        JSON.stringify({ refresh_token: tokenData.refresh_token }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Get access token using refresh token
     const credentials = {
@@ -80,12 +120,15 @@ serve(async (req) => {
 
       // Upload all files to the same folder
       const uploadedFiles = await Promise.all(files.map(async ({ fileName, fileContent, mimeType }) => {
-        console.log('Uploading file:', fileName, 'Type:', mimeType);
-
+        console.log('Uploading file:', fileName);
+        
         try {
-          // Convert base64 string back to binary
-          const binaryContent = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
-          
+          const binaryStr = atob(fileContent);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+
           // Create file metadata
           const fileMetadata = {
             name: fileName,
@@ -107,7 +150,7 @@ serve(async (req) => {
           // Combine metadata and file content
           const requestParts = [
             new TextEncoder().encode(multipartRequestBody),
-            binaryContent,
+            bytes,
             new TextEncoder().encode(close_delim)
           ];
           
