@@ -31,20 +31,19 @@ export const useFileProcessor = () => {
       }
 
       // Prepare all files data for upload
-      const filesData = results.map((result, index) => {
-        const file = files[index];
-        const buffer = new Uint8Array(file.arrayBuffer());
+      const filesData = await Promise.all(files.map(async (file, index) => {
+        const buffer = await file.arrayBuffer();
         const base64Content = btoa(
-          buffer.reduce((data, byte) => data + String.fromCharCode(byte), '')
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
         );
 
         return {
           fileName: file.name,
           fileContent: base64Content,
           mimeType: file.type,
-          extractedData: result
+          extractedData: results[index]
         };
-      });
+      }));
 
       // Upload all files in one request
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
