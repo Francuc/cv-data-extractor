@@ -21,14 +21,7 @@ api_url = "http://localhost"
 enabled = true
 port = 54324
 
-[auth]
-enabled = true
-port = 54325
-
 [analytics]
 enabled = true
 port = 54327
 vector_port = 54328
-gcp_project_id = ""
-gcp_project_number = ""
-gcp_jwt_path = ""
