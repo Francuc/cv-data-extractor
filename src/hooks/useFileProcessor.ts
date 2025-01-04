@@ -12,23 +12,22 @@ export const useFileProcessor = () => {
     const results: ExtractedData[] = [];
 
     try {
-      // Create a new Google Sheet
-      const { data: sheetData, error: sheetError } = await supabase.functions.invoke('google-drive-operations', {
-        body: { operation: 'createSheet' }
-      });
-
-      if (sheetError) throw sheetError;
-
       for (const file of files) {
         const data = await extractDataFromFile(file);
         if (data) {
+          // Convert file to base64
+          const buffer = await file.arrayBuffer();
+          const base64Content = btoa(
+            new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+
           // Upload file to Google Drive
           const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
             body: {
               operation: 'uploadFile',
               files: {
                 fileName: file.name,
-                fileContent: await file.arrayBuffer(),
+                fileContent: base64Content,
                 mimeType: file.type
               }
             }
