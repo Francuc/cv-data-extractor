@@ -4,4 +4,5 @@ export interface ExtractedData {
   phoneNumber: string;
   fileName: string;
   rawText: string;
+  fileLink?: string;
 }

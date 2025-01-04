@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ExternalLink } from 'lucide-react';
 import { ExtractedData } from '@/types/data';
 
 interface ReviewListProps {
@@ -26,6 +27,7 @@ export const ReviewList = ({ data }: ReviewListProps) => {
               <TableHead>Surname</TableHead>
               <TableHead>Phone Number</TableHead>
               <TableHead>Source File</TableHead>
+              <TableHead>File Link</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -36,6 +38,20 @@ export const ReviewList = ({ data }: ReviewListProps) => {
                 <TableCell>{item.phoneNumber}</TableCell>
                 <TableCell className="text-gray-500 text-sm">
                   {item.fileName}
+                </TableCell>
+                <TableCell>
+                  {item.fileLink ? (
+                    <a
+                      href={item.fileLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-blue-500 hover:text-blue-700"
+                    >
+                      View <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <span className="text-gray-500">No link available</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
