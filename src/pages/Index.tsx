@@ -8,22 +8,28 @@ import { useFileProcessor } from '@/hooks/useFileProcessor';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ExtractedData } from '@/types/data';
+import { PasswordDialog } from '@/components/PasswordDialog';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [reviewData, setReviewData] = useState<ExtractedData[]>([]);
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
     console.log('Files selected:', newFiles.map(f => ({ name: f.name, type: f.type })));
   };
 
-  const handleProcess = async () => {
+  const handleProcessClick = () => {
     if (files.length === 0) {
       toast.error('Please select files first');
       return;
     }
+    setIsPasswordDialogOpen(true);
+  };
+
+  const handleProcess = async () => {
     console.log('Starting processing of files...');
     const results = await processFiles(files);
     
@@ -75,12 +81,18 @@ const Index = () => {
 
         <div className="flex justify-center">
           <Button
-            onClick={handleProcess}
+            onClick={handleProcessClick}
             disabled={isProcessing || files.length === 0}
           >
             {isProcessing ? 'Processing...' : 'Process Files'}
           </Button>
         </div>
+
+        <PasswordDialog
+          isOpen={isPasswordDialogOpen}
+          onClose={() => setIsPasswordDialogOpen(false)}
+          onSuccess={handleProcess}
+        />
 
         <ProcessingStatus
           totalFiles={files.length}
