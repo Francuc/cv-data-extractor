@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { operation, files } = await req.json()
+    const { operation, files, folderId } = await req.json()
     console.log(`Processing ${operation} operation`)
 
     if (operation === 'getAuthUrl') {
@@ -76,6 +76,31 @@ serve(async (req) => {
     });
 
     const { access_token } = await tokenResponse.json();
+
+    if (operation === 'deleteFolder') {
+      if (!folderId) {
+        throw new Error('No folder ID provided');
+      }
+
+      console.log('Deleting folder:', folderId);
+      
+      const deleteResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+        },
+      });
+
+      if (!deleteResponse.ok) {
+        const errorText = await deleteResponse.text();
+        throw new Error(`Failed to delete folder: ${errorText}`);
+      }
+
+      return new Response(
+        JSON.stringify({ message: 'Folder deleted successfully' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (operation === 'uploadFiles') {
       console.log('Starting batch file upload process')
@@ -221,10 +246,7 @@ serve(async (req) => {
     console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })

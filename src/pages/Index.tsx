@@ -9,10 +9,13 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ExtractedData } from '@/types/data';
 import { PasswordDialog } from '@/components/PasswordDialog';
+import { Copy, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [reviewData, setReviewData] = useState<ExtractedData[]>([]);
+  const [folderLink, setFolderLink] = useState<string>('');
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
@@ -33,6 +36,11 @@ const Index = () => {
     console.log('Starting processing of files...');
     const results = await processFiles(files);
     
+    // Update folder link if available in the response
+    if (results.folderLink) {
+      setFolderLink(results.folderLink);
+    }
+    
     // Separate complete and incomplete records
     const complete: ExtractedData[] = [];
     const incomplete: ExtractedData[] = [];
@@ -47,6 +55,47 @@ const Index = () => {
     
     setProcessedData(complete);
     setReviewData(prev => [...prev, ...incomplete]);
+  };
+
+  const handleCopyFolderLink = async () => {
+    if (!folderLink) {
+      toast.error('No folder link available');
+      return;
+    }
+    
+    try {
+      await navigator.clipboard.writeText(folderLink);
+      toast.success('Folder link copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy folder link');
+      console.error('Copy error:', error);
+    }
+  };
+
+  const handleDeleteFolder = async () => {
+    if (!folderLink) {
+      toast.error('No folder to delete');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.functions.invoke('google-drive-operations', {
+        body: {
+          operation: 'deleteFolder',
+          folderId: folderLink.split('/').pop()
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Folder deleted successfully');
+      setFolderLink('');
+    } catch (error) {
+      toast.error('Failed to delete folder');
+      console.error('Delete error:', error);
+    }
   };
 
   const handleReview = (index: number) => {
@@ -79,13 +128,35 @@ const Index = () => {
 
         <FileUploader onFilesSelected={handleFilesSelected} />
 
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-4">
           <Button
             onClick={handleProcessClick}
             disabled={isProcessing || files.length === 0}
           >
             {isProcessing ? 'Processing...' : 'Process Files'}
           </Button>
+
+          {folderLink && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleCopyFolderLink}
+                className="gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Copy Folder Link
+              </Button>
+              
+              <Button
+                variant="destructive"
+                onClick={handleDeleteFolder}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Folder
+              </Button>
+            </>
+          )}
         </div>
 
         <PasswordDialog
