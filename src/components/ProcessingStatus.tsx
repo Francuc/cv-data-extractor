@@ -14,11 +14,12 @@ export const ProcessingStatus = ({
   if (totalFiles === 0) return null;
 
   const progress = (processedFiles / totalFiles) * 100;
+  const stage = processedFiles === totalFiles ? 'Uploading' : 'Processing';
 
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm text-gray-600">
-        <span>Processing Progress</span>
+        <span>{stage} Progress</span>
         <span>
           {processedFiles} / {totalFiles} files
         </span>
@@ -26,7 +27,7 @@ export const ProcessingStatus = ({
       <Progress value={progress} className="w-full" />
       {isProcessing && (
         <p className="text-sm text-gray-500 text-center">
-          Processing files, please wait...
+          {stage} files, please wait...
         </p>
       )}
     </div>

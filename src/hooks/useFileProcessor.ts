@@ -12,23 +12,39 @@ export const useFileProcessor = () => {
     const results: ExtractedData[] = [];
 
     try {
-      // Convert all files to base64 first
-      const filesData = await Promise.all(
-        files.map(async (file) => {
-          const data = await extractDataFromFile(file);
-          const buffer = await file.arrayBuffer();
-          const base64Content = btoa(
-            new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
+      // Process files one by one to show accurate progress
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const data = await extractDataFromFile(file);
+        const buffer = await file.arrayBuffer();
+        const base64Content = btoa(
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
 
-          return {
-            fileName: file.name,
-            fileContent: base64Content,
-            mimeType: file.type,
-            extractedData: data
-          };
-        })
-      );
+        results.push({
+          ...data,
+          fileName: file.name
+        });
+
+        // Update processed count after each file
+        setProcessedData(results);
+      }
+
+      // Prepare all files data for upload
+      const filesData = results.map((result, index) => {
+        const file = files[index];
+        const buffer = new Uint8Array(file.arrayBuffer());
+        const base64Content = btoa(
+          buffer.reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+
+        return {
+          fileName: file.name,
+          fileContent: base64Content,
+          mimeType: file.type,
+          extractedData: result
+        };
+      });
 
       // Upload all files in one request
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
@@ -40,23 +56,21 @@ export const useFileProcessor = () => {
 
       if (uploadError) {
         console.error('Error uploading files:', uploadError);
-        filesData.forEach(({ extractedData, fileName }) => {
-          results.push({ ...extractedData, fileName });
-        });
-      } else {
-        // Match the uploaded files with their data
-        filesData.forEach(({ extractedData, fileName }, index) => {
-          results.push({
-            ...extractedData,
-            fileName,
-            fileLink: uploadData.fileLinks[index]
-          });
-        });
+        return {
+          data: results,
+          folderLink: undefined
+        };
       }
 
-      setProcessedData(results);
+      // Match the uploaded files with their data
+      const finalResults = results.map((result, index) => ({
+        ...result,
+        fileLink: uploadData.fileLinks[index]
+      }));
+
+      setProcessedData(finalResults);
       return {
-        data: results,
+        data: finalResults,
         folderLink: uploadData?.folderLink
       };
     } catch (error) {

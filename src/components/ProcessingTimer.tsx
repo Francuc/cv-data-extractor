@@ -7,7 +7,7 @@ interface ProcessingTimerProps {
 
 export const ProcessingTimer = ({ isProcessing, totalFiles }: ProcessingTimerProps) => {
   const [elapsedTime, setElapsedTime] = useState(0);
-  const ESTIMATED_TIME_PER_FILE = 2; // seconds per file
+  const ESTIMATED_TIME_PER_FILE = 4; // Increased to account for processing + upload time
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -31,12 +31,19 @@ export const ProcessingTimer = ({ isProcessing, totalFiles }: ProcessingTimerPro
   const estimatedTotalTime = totalFiles * ESTIMATED_TIME_PER_FILE;
   const remainingTime = Math.max(0, estimatedTotalTime - elapsedTime);
 
+  const formatTime = (seconds: number) => {
+    if (seconds < 60) return `${seconds} seconds`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes} min ${remainingSeconds} sec`;
+  };
+
   return (
     <div className="text-sm text-gray-600 text-center mt-2">
       <p>
-        Estimated time remaining: {remainingTime} seconds
+        Estimated time remaining: {formatTime(remainingTime)}
         <br />
-        Time elapsed: {elapsedTime} seconds
+        Time elapsed: {formatTime(elapsedTime)}
       </p>
     </div>
   );
