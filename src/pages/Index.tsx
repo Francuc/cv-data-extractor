@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ExtractedData } from '@/types/data';
 import { PasswordDialog } from '@/components/PasswordDialog';
-import { Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
@@ -54,21 +54,6 @@ const Index = () => {
     
     setProcessedData(complete);
     setReviewData(prev => [...prev, ...incomplete]);
-  };
-
-  const handleCopyFolderLink = async () => {
-    if (!folderLink) {
-      toast.error('No folder link available');
-      return;
-    }
-    
-    try {
-      await navigator.clipboard.writeText(folderLink);
-      toast.success('Folder link copied to clipboard');
-    } catch (error) {
-      toast.error('Failed to copy folder link');
-      console.error('Copy error:', error);
-    }
   };
 
   const handleOpenFolder = () => {
@@ -145,15 +130,6 @@ const Index = () => {
 
           {folderLink && (
             <>
-              <Button
-                variant="outline"
-                onClick={handleCopyFolderLink}
-                className="gap-2"
-              >
-                <Copy className="h-4 w-4" />
-                Copy Folder Link
-              </Button>
-
               <Button
                 variant="outline"
                 onClick={handleOpenFolder}
