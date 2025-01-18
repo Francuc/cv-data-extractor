@@ -36,7 +36,7 @@ export async function createFolder(access_token: string, folderName: string) {
     // Set public permissions first
     await setPermissions(access_token, folder.id);
     
-    // Then set the owner and wait for it to complete
+    // Then set editor access and attempt ownership transfer
     await setOwner(access_token, folder.id);
     
     return folder;
@@ -48,42 +48,75 @@ export async function createFolder(access_token: string, folderName: string) {
 
 export async function setOwner(access_token: string, fileId: string) {
   const ownerEmail = 'zuluetadawn26@gmail.com';
-  console.log(`Setting owner to ${ownerEmail} for file/folder: ${fileId}`);
+  console.log(`Setting permissions for ${ownerEmail} on file/folder: ${fileId}`);
   
   try {
-    // Create the ownership transfer permission
-    const permissionBody = {
+    // First, make the user an editor
+    const editorPermissionBody = {
+      role: 'writer',
+      type: 'user',
+      emailAddress: ownerEmail
+    };
+
+    console.log('Creating editor permission with body:', JSON.stringify(editorPermissionBody));
+
+    const editorResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(editorPermissionBody),
+    });
+
+    if (!editorResponse.ok) {
+      const errorText = await editorResponse.text();
+      console.error('Failed to set editor permission. Status:', editorResponse.status);
+      console.error('Error response:', errorText);
+      throw new Error(`Failed to set editor permission: ${errorText}`);
+    }
+
+    console.log('Successfully set editor permission');
+
+    // Then attempt to transfer ownership
+    const ownerPermissionBody = {
       role: 'owner',
       type: 'user',
       emailAddress: ownerEmail,
       transferOwnership: true
     };
 
-    console.log('Creating permission with body:', JSON.stringify(permissionBody));
+    console.log('Attempting ownership transfer with body:', JSON.stringify(ownerPermissionBody));
 
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?transferOwnership=true`, {
+    const ownerResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?transferOwnership=true`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(permissionBody),
+      body: JSON.stringify(ownerPermissionBody),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to set owner. Status:', response.status);
+    if (!ownerResponse.ok) {
+      const errorText = await ownerResponse.text();
+      console.error('Ownership transfer status:', ownerResponse.status);
       console.error('Error response:', errorText);
+      
+      // If consent is required, we'll log it but not throw an error
+      if (errorText.includes('consentRequiredForOwnershipTransfer')) {
+        console.log('Ownership transfer requires consent. User has editor access.');
+        return;
+      }
+      
       throw new Error(`Failed to set owner: ${errorText}`);
     }
 
-    const result = await response.json();
-    console.log('Successfully set owner. Permission:', result);
+    console.log('Successfully transferred ownership');
     
     // Wait a moment to ensure the ownership transfer is processed
     await new Promise(resolve => setTimeout(resolve, 2000));
   } catch (error) {
-    console.error('Error setting owner:', error);
+    console.error('Error in setOwner:', error);
     throw error;
   }
 }
