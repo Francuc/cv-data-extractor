@@ -11,7 +11,8 @@ export async function getAccessToken() {
     grant_type: 'refresh_token',
   };
 
-  console.log('Checking credentials presence:', {
+  console.log('Starting token refresh process...');
+  console.log('Credentials check:', {
     hasClientId: !!credentials.client_id,
     hasClientSecret: !!credentials.client_secret,
     hasRefreshToken: !!credentials.refresh_token,
@@ -23,23 +24,29 @@ export async function getAccessToken() {
   }
 
   try {
-    console.log('Attempting to refresh token...');
+    console.log('Making token refresh request to Google...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams(credentials),
+      body: new URLSearchParams({
+        client_id: credentials.client_id,
+        client_secret: credentials.client_secret,
+        refresh_token: credentials.refresh_token,
+        grant_type: 'refresh_token',
+      }),
     });
 
+    const responseText = await tokenResponse.text();
+    console.log('Token response status:', tokenResponse.status);
+    console.log('Token response:', responseText);
+
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error('Token refresh failed. Status:', tokenResponse.status);
-      console.error('Error response:', errorData);
-      throw new Error(`Failed to refresh token: ${errorData}`);
+      throw new Error(`Failed to refresh token: ${responseText}`);
     }
 
-    const tokenData = await tokenResponse.json();
+    const tokenData = JSON.parse(responseText);
     console.log('Successfully obtained new access token');
     return tokenData.access_token;
   } catch (error) {
@@ -65,13 +72,15 @@ export async function createFolder(access_token: string, folderName: string) {
       body: JSON.stringify(folderMetadata),
     });
 
+    const responseText = await folderResponse.text();
+    console.log('Folder creation response:', responseText);
+
     if (!folderResponse.ok) {
-      const errorText = await folderResponse.text();
-      console.error('Folder creation failed:', errorText);
-      throw new Error(`Failed to create folder: ${errorText}`);
+      console.error('Folder creation failed:', responseText);
+      throw new Error(`Failed to create folder: ${responseText}`);
     }
 
-    const folder = await folderResponse.json();
+    const folder = JSON.parse(responseText);
     console.log('Folder created with ID:', folder.id);
     return folder;
   } catch (error) {
