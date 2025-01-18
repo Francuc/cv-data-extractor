@@ -10,14 +10,12 @@ export async function getAccessToken() {
     refresh_token: Deno.env.get("GOOGLE_REFRESH_TOKEN"),
   };
 
-  // Log the presence of credentials (not their values)
   console.log('Checking credentials presence:', {
     hasClientId: !!credentials.client_id,
     hasClientSecret: !!credentials.client_secret,
     hasRefreshToken: !!credentials.refresh_token,
   });
 
-  // Validate credentials
   if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token) {
     console.error('Missing required Google credentials');
     throw new Error('Missing required Google credentials. Please check all required secrets are set.');
@@ -78,25 +76,6 @@ export async function createFolder(access_token: string, folderName: string) {
   const folder = await folderResponse.json();
   console.log('Folder created with ID:', folder.id);
   return folder;
-}
-
-export async function setPermissions(access_token: string, fileId: string) {
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      role: 'reader',
-      type: 'anyone',
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to set permissions: ${errorText}`);
-  }
 }
 
 export async function uploadFile(access_token: string, file: any, folderId: string) {
@@ -161,8 +140,6 @@ export async function uploadFile(access_token: string, file: any, folderId: stri
 
     const uploadedFile = await fileResponse.json();
     console.log('File uploaded with ID:', uploadedFile.id);
-    
-    await setPermissions(access_token, uploadedFile.id);
     return uploadedFile.webViewLink;
   } catch (error) {
     console.error('Error processing file:', error);

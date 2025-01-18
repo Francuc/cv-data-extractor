@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { corsHeaders } from './googleDriveUtils.ts';
-import { handleDeleteFolder, handleUploadFiles } from './operationsHandler.ts';
+import { handleUploadFiles } from './operationsHandler.ts';
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -9,23 +9,9 @@ serve(async (req) => {
   }
 
   try {
-    const { operation, files, folderId } = await req.json();
+    const { operation, files } = await req.json();
     console.log(`Processing ${operation} operation`);
 
-    if (operation === 'deleteFolder') {
-      if (!folderId) {
-        throw new Error('No folder ID provided');
-      }
-
-      console.log('Deleting folder:', folderId);
-      const result = await handleDeleteFolder(folderId);
-      
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
     if (operation === 'uploadFiles') {
       if (!files || !Array.isArray(files)) {
         throw new Error('No files data provided or invalid format');
@@ -36,7 +22,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
@@ -49,10 +35,7 @@ serve(async (req) => {
         error: error.message,
         details: error.stack
       }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
-        status: 500 
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
