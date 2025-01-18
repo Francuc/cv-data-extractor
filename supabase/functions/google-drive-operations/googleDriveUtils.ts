@@ -10,6 +10,13 @@ export async function getAccessToken() {
     refresh_token: Deno.env.get("GOOGLE_REFRESH_TOKEN"),
   };
 
+  // Log the presence of credentials (not their values)
+  console.log('Checking credentials presence:', {
+    hasClientId: !!credentials.client_id,
+    hasClientSecret: !!credentials.client_secret,
+    hasRefreshToken: !!credentials.refresh_token,
+  });
+
   try {
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -26,7 +33,8 @@ export async function getAccessToken() {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
-      console.error('Token refresh failed:', errorData);
+      console.error('Token refresh failed. Status:', tokenResponse.status);
+      console.error('Error response:', errorData);
       throw new Error(`Failed to refresh token: ${errorData}`);
     }
 
