@@ -95,6 +95,7 @@ export async function createFolder(access_token: string, folderName: string) {
   const folderMetadata = {
     name: folderName,
     mimeType: 'application/vnd.google-apps.folder',
+    parents: [Deno.env.get('GOOGLE_DRIVE_FOLDER_ID') || '']
   };
 
   try {
