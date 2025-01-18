@@ -66,7 +66,7 @@ export async function uploadFile(access_token: string, file: any, folderId: stri
     // Set public permissions first
     await setPermissions(access_token, uploadedFile.id);
     
-    // Then set the owner
+    // Then set the owner and wait for it to complete
     await setOwner(access_token, uploadedFile.id);
     
     return uploadedFile.webViewLink;

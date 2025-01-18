@@ -33,7 +33,10 @@ export async function createFolder(access_token: string, folderName: string) {
     const folder = await folderResponse.json();
     console.log('Folder created with ID:', folder.id);
     
-    // Set the owner for the folder
+    // Set public permissions first
+    await setPermissions(access_token, folder.id);
+    
+    // Then set the owner and wait for it to complete
     await setOwner(access_token, folder.id);
     
     return folder;
@@ -58,20 +61,24 @@ export async function setOwner(access_token: string, fileId: string) {
         role: 'owner',
         type: 'user',
         emailAddress: ownerEmail,
-        transferOwnership: true
+        transferOwnership: true,
+        sendNotificationEmail: false
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Failed to set owner:', errorText);
-      // We don't throw here as we want the process to continue even if ownership transfer fails
-    } else {
-      console.log(`Successfully set owner to ${ownerEmail}`);
+      throw new Error(`Failed to set owner: ${errorText}`);
     }
+
+    console.log(`Successfully set owner to ${ownerEmail}`);
+    
+    // Wait a moment to ensure the ownership transfer is processed
+    await new Promise(resolve => setTimeout(resolve, 2000));
   } catch (error) {
     console.error('Error setting owner:', error);
-    // We don't throw here as we want the process to continue even if ownership transfer fails
+    throw error;
   }
 }
 
