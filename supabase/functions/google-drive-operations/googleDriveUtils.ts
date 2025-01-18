@@ -4,30 +4,74 @@ export const corsHeaders = {
 };
 
 export async function getAccessToken() {
-  const credentials = {
-    client_id: Deno.env.get("GOOGLE_CLIENT_ID"),
-    client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
-    refresh_token: Deno.env.get("GOOGLE_REFRESH_TOKEN"),
-  };
-
   try {
+    const serviceAccount = JSON.parse(Deno.env.get("GOOGLE_SERVICE_ACCOUNT") || "");
+    
+    // Create JWT
+    const header = {
+      alg: 'RS256',
+      typ: 'JWT',
+      kid: serviceAccount.private_key_id
+    };
+
+    const now = Math.floor(Date.now() / 1000);
+    const claim = {
+      iss: serviceAccount.client_email,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now
+    };
+
+    // Encode header and claim
+    const encodedHeader = btoa(JSON.stringify(header));
+    const encodedClaim = btoa(JSON.stringify(claim));
+    
+    // Create signature
+    const signatureInput = `${encodedHeader}.${encodedClaim}`;
+    const privateKey = serviceAccount.private_key;
+    
+    const encoder = new TextEncoder();
+    const signatureBytes = encoder.encode(signatureInput);
+    
+    // Import private key
+    const privateKeyObject = await crypto.subtle.importKey(
+      'pkcs8',
+      new TextEncoder().encode(privateKey),
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256',
+      },
+      false,
+      ['sign']
+    );
+    
+    // Sign the input
+    const signature = await crypto.subtle.sign(
+      'RSASSA-PKCS1-v1_5',
+      privateKeyObject,
+      signatureBytes
+    );
+    
+    // Create JWT
+    const jwt = `${encodedHeader}.${encodedClaim}.${btoa(String.fromCharCode(...new Uint8Array(signature)))}`;
+    
+    // Exchange JWT for access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: credentials.client_id!,
-        client_secret: credentials.client_secret!,
-        refresh_token: credentials.refresh_token!,
-        grant_type: 'refresh_token',
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt,
       }),
     });
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
-      console.error('Token refresh failed:', errorData);
-      throw new Error(`Failed to refresh token: ${errorData}`);
+      console.error('Token exchange failed:', errorData);
+      throw new Error(`Failed to exchange token: ${errorData}`);
     }
 
     const { access_token } = await tokenResponse.json();
