@@ -29,15 +29,20 @@ export async function getAccessToken() {
     
     // Create signature
     const signatureInput = `${encodedHeader}.${encodedClaim}`;
-    const privateKey = serviceAccount.private_key;
     
-    const encoder = new TextEncoder();
-    const signatureBytes = encoder.encode(signatureInput);
+    // Format private key by removing header, footer, and newlines
+    const privateKey = serviceAccount.private_key
+      .replace('-----BEGIN PRIVATE KEY-----\n', '')
+      .replace('\n-----END PRIVATE KEY-----\n', '')
+      .replace(/\n/g, '');
+    
+    // Decode base64 private key
+    const binaryKey = Uint8Array.from(atob(privateKey), c => c.charCodeAt(0));
     
     // Import private key
     const privateKeyObject = await crypto.subtle.importKey(
       'pkcs8',
-      new TextEncoder().encode(privateKey),
+      binaryKey,
       {
         name: 'RSASSA-PKCS1-v1_5',
         hash: 'SHA-256',
@@ -45,6 +50,9 @@ export async function getAccessToken() {
       false,
       ['sign']
     );
+    
+    const encoder = new TextEncoder();
+    const signatureBytes = encoder.encode(signatureInput);
     
     // Sign the input
     const signature = await crypto.subtle.sign(
