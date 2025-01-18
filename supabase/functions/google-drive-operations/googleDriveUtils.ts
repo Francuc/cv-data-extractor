@@ -17,16 +17,23 @@ export async function getAccessToken() {
     hasRefreshToken: !!credentials.refresh_token,
   });
 
+  // Validate credentials
+  if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token) {
+    console.error('Missing required Google credentials');
+    throw new Error('Missing required Google credentials. Please check all required secrets are set.');
+  }
+
   try {
+    console.log('Attempting to refresh token...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: credentials.client_id!,
-        client_secret: credentials.client_secret!,
-        refresh_token: credentials.refresh_token!,
+        client_id: credentials.client_id,
+        client_secret: credentials.client_secret,
+        refresh_token: credentials.refresh_token,
         grant_type: 'refresh_token',
       }),
     });
@@ -38,8 +45,9 @@ export async function getAccessToken() {
       throw new Error(`Failed to refresh token: ${errorData}`);
     }
 
-    const { access_token } = await tokenResponse.json();
-    return access_token;
+    const tokenData = await tokenResponse.json();
+    console.log('Successfully obtained new access token');
+    return tokenData.access_token;
   } catch (error) {
     console.error('Error getting access token:', error);
     throw error;
