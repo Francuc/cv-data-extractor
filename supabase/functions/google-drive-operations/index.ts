@@ -1,50 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { corsHeaders } from './googleDriveUtils.ts';
-import { handleDeleteFolder, handleUploadFiles } from './operationsHandler.ts';
+import { handleUploadFiles, handleDeleteFolder } from './operationsHandler.ts'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { operation, files, folderId } = await req.json();
-    console.log(`Processing ${operation} operation`);
+    const { operation, files, folderId } = await req.json()
 
-    if (operation === 'deleteFolder') {
-      if (!folderId) {
-        throw new Error('No folder ID provided');
-      }
-
-      console.log('Deleting folder:', folderId);
-      const result = await handleDeleteFolder(folderId);
-      
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    switch (operation) {
+      case 'uploadFiles':
+        return await handleUploadFiles(files, corsHeaders)
+      case 'deleteFolder':
+        return await handleDeleteFolder(folderId, corsHeaders)
+      default:
+        return new Response(
+          JSON.stringify({ error: 'Invalid operation' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
     }
-    
-    if (operation === 'uploadFiles') {
-      if (!files || !Array.isArray(files)) {
-        throw new Error('No files data provided or invalid format');
-      }
-
-      const result = await handleUploadFiles(files);
-
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    throw new Error(`Unknown operation: ${operation}`);
-
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error processing request:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    );
+    )
   }
-});
+})
