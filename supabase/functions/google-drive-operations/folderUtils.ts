@@ -51,18 +51,17 @@ export async function setOwner(access_token: string, fileId: string) {
   console.log(`Setting owner to ${ownerEmail} for file/folder: ${fileId}`);
   
   try {
-    // Create the ownership transfer permission with explicit transferOwnership flag
+    // Create the ownership transfer permission
     const permissionBody = {
       role: 'owner',
       type: 'user',
       emailAddress: ownerEmail,
-      transferOwnership: true,
-      sendNotificationEmail: false
+      transferOwnership: true
     };
 
     console.log('Creating permission with body:', JSON.stringify(permissionBody));
 
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?transferOwnership=true`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${access_token}`,
