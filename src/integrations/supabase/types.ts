@@ -122,6 +122,30 @@ export type Database = {
         }
         Relationships: []
       }
+      country_codes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          phone_code: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          phone_code: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          phone_code?: string
+        }
+        Relationships: []
+      }
       industries: {
         Row: {
           created_at: string
@@ -146,12 +170,139 @@ export type Database = {
         }
         Relationships: []
       }
+      sd_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string | null
+          id: string
+          location: string
+          max_attendees: number
+          time: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          description?: string | null
+          id?: string
+          location: string
+          max_attendees: number
+          time: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          location?: string
+          max_attendees?: number
+          time?: string
+        }
+        Relationships: []
+      }
+      sd_profiles: {
+        Row: {
+          created_at: string
+          date_of_birth: string
+          email: string
+          first_name: string
+          gender: string
+          id: string
+          last_name: string
+          looking_for: string
+          phone: string | null
+          picture_url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth: string
+          email: string
+          first_name: string
+          gender: string
+          id?: string
+          last_name: string
+          looking_for: string
+          phone?: string | null
+          picture_url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string
+          email?: string
+          first_name?: string
+          gender?: string
+          id?: string
+          last_name?: string
+          looking_for?: string
+          phone?: string | null
+          picture_url?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      sd_registrations: {
+        Row: {
+          event_id: string | null
+          id: string
+          profile_id: string | null
+          registration_date: string
+          verified: boolean | null
+        }
+        Insert: {
+          event_id?: string | null
+          id?: string
+          profile_id?: string | null
+          registration_date?: string
+          verified?: boolean | null
+        }
+        Update: {
+          event_id?: string | null
+          id?: string
+          profile_id?: string | null
+          registration_date?: string
+          verified?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sd_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "sd_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sd_registrations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "sd_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_verified_registrations: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          first_name: string
+          last_name: string
+          gender: string
+          picture_url: string
+          location: string
+          date: string
+          registration_date: string
+          verified: boolean
+          total_verified_registrations: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
