@@ -51,45 +51,35 @@ export async function setOwner(access_token: string, fileId: string) {
   console.log(`Setting owner to ${ownerEmail} for file/folder: ${fileId}`);
   
   try {
-    // First, check if the file exists and get its current permissions
-    const checkResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=owners,permissions`, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-      },
-    });
+    // Create the ownership transfer permission with explicit transferOwnership flag
+    const permissionBody = {
+      role: 'owner',
+      type: 'user',
+      emailAddress: ownerEmail,
+      transferOwnership: true,
+      sendNotificationEmail: false
+    };
 
-    if (!checkResponse.ok) {
-      const errorText = await checkResponse.text();
-      throw new Error(`Failed to check file: ${errorText}`);
-    }
+    console.log('Creating permission with body:', JSON.stringify(permissionBody));
 
-    const fileInfo = await checkResponse.json();
-    console.log('Current file info:', fileInfo);
-
-    // Create the ownership transfer permission
     const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        role: 'owner',
-        type: 'user',
-        emailAddress: ownerEmail,
-        transferOwnership: true,
-        sendNotificationEmail: false,
-        supportsAllDrives: true
-      }),
+      body: JSON.stringify(permissionBody),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Failed to set owner:', errorText);
+      console.error('Failed to set owner. Status:', response.status);
+      console.error('Error response:', errorText);
       throw new Error(`Failed to set owner: ${errorText}`);
     }
 
-    console.log(`Successfully set owner to ${ownerEmail}`);
+    const result = await response.json();
+    console.log('Successfully set owner. Permission:', result);
     
     // Wait a moment to ensure the ownership transfer is processed
     await new Promise(resolve => setTimeout(resolve, 2000));
