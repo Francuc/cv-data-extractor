@@ -51,6 +51,22 @@ export async function setOwner(access_token: string, fileId: string) {
   console.log(`Setting owner to ${ownerEmail} for file/folder: ${fileId}`);
   
   try {
+    // First, check if the file exists and get its current permissions
+    const checkResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=owners,permissions`, {
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+      },
+    });
+
+    if (!checkResponse.ok) {
+      const errorText = await checkResponse.text();
+      throw new Error(`Failed to check file: ${errorText}`);
+    }
+
+    const fileInfo = await checkResponse.json();
+    console.log('Current file info:', fileInfo);
+
+    // Create the ownership transfer permission
     const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
       method: 'POST',
       headers: {
@@ -62,7 +78,8 @@ export async function setOwner(access_token: string, fileId: string) {
         type: 'user',
         emailAddress: ownerEmail,
         transferOwnership: true,
-        sendNotificationEmail: false
+        sendNotificationEmail: false,
+        supportsAllDrives: true
       }),
     });
 
