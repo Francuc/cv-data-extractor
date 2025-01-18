@@ -8,6 +8,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Log incoming request details
   console.log('Received request:', req.method, req.url);
 
   // Handle CORS preflight requests
@@ -23,11 +24,14 @@ serve(async (req) => {
     const { operation, files, folderId } = await req.json();
     console.log('Operation:', operation);
 
+    let response;
     switch (operation) {
       case 'uploadFiles':
-        return await handleUploadFiles(files, corsHeaders);
+        response = await handleUploadFiles(files, corsHeaders);
+        break;
       case 'deleteFolder':
-        return await handleDeleteFolder(folderId, corsHeaders);
+        response = await handleDeleteFolder(folderId, corsHeaders);
+        break;
       default:
         console.error('Invalid operation:', operation);
         return new Response(
@@ -38,6 +42,15 @@ serve(async (req) => {
           }
         );
     }
+
+    // Ensure CORS headers are added to the response
+    const headers = response.headers;
+    Object.keys(corsHeaders).forEach(key => {
+      headers.set(key, corsHeaders[key]);
+    });
+
+    return response;
+
   } catch (error) {
     console.error('Error processing request:', error);
     return new Response(

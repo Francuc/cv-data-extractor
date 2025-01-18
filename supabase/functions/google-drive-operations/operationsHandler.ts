@@ -36,7 +36,6 @@ export async function handleUploadFiles(files: any[], corsHeaders: any) {
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
         } 
       }
     );
@@ -80,7 +79,6 @@ export async function handleDeleteFolder(folderId: string, corsHeaders: any) {
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
         } 
       }
     );
