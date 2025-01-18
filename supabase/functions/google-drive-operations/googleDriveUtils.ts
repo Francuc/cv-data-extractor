@@ -8,6 +8,7 @@ export async function getAccessToken() {
     client_id: Deno.env.get("GOOGLE_CLIENT_ID"),
     client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET"),
     refresh_token: Deno.env.get("GOOGLE_REFRESH_TOKEN"),
+    grant_type: 'refresh_token',
   };
 
   console.log('Checking credentials presence:', {
@@ -28,12 +29,7 @@ export async function getAccessToken() {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        client_id: credentials.client_id,
-        client_secret: credentials.client_secret,
-        refresh_token: credentials.refresh_token,
-        grant_type: 'refresh_token',
-      }),
+      body: new URLSearchParams(credentials),
     });
 
     if (!tokenResponse.ok) {
@@ -59,23 +55,29 @@ export async function createFolder(access_token: string, folderName: string) {
     mimeType: 'application/vnd.google-apps.folder',
   };
 
-  const folderResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(folderMetadata),
-  });
+  try {
+    const folderResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(folderMetadata),
+    });
 
-  if (!folderResponse.ok) {
-    const errorText = await folderResponse.text();
-    throw new Error(`Failed to create folder: ${errorText}`);
+    if (!folderResponse.ok) {
+      const errorText = await folderResponse.text();
+      console.error('Folder creation failed:', errorText);
+      throw new Error(`Failed to create folder: ${errorText}`);
+    }
+
+    const folder = await folderResponse.json();
+    console.log('Folder created with ID:', folder.id);
+    return folder;
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    throw error;
   }
-
-  const folder = await folderResponse.json();
-  console.log('Folder created with ID:', folder.id);
-  return folder;
 }
 
 export async function uploadFile(access_token: string, file: any, folderId: string) {
