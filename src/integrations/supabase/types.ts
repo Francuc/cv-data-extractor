@@ -9,6 +9,57 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      avatars: {
+        Row: {
+          accessories: Json | null
+          animations: Json | null
+          created_at: string | null
+          eye_color: string
+          facial_features: Json | null
+          hair_color: string
+          id: string
+          model_data: Json | null
+          pants_color: string
+          shirt_color: string
+          shoes_color: string
+          skin_color: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          accessories?: Json | null
+          animations?: Json | null
+          created_at?: string | null
+          eye_color?: string
+          facial_features?: Json | null
+          hair_color?: string
+          id?: string
+          model_data?: Json | null
+          pants_color?: string
+          shirt_color?: string
+          shoes_color?: string
+          skin_color?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          accessories?: Json | null
+          animations?: Json | null
+          created_at?: string | null
+          eye_color?: string
+          facial_features?: Json | null
+          hair_color?: string
+          id?: string
+          model_data?: Json | null
+          pants_color?: string
+          shirt_color?: string
+          shoes_color?: string
+          skin_color?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       vroid_tokens: {
         Row: {
           access_token: string
