@@ -136,11 +136,22 @@ export const deleteFolder = async (folderId: string): Promise<{ success: boolean
 
 export const updateRefreshToken = async (token: string): Promise<{ success: boolean }> => {
   try {
-    console.log('Attempting to update refresh token');
-    await _supabaseAdmin.functions.config.set([
-      { name: 'GOOGLE_REFRESH_TOKEN', value: token }
-    ]);
-    console.log('Token updated successfully');
+    console.log('Attempting to update refresh token in secrets table');
+    
+    // Update the token in the secrets table
+    const { error: secretError } = await _supabaseAdmin
+      .from('secrets')
+      .upsert({
+        key: 'GOOGLE_REFRESH_TOKEN',
+        value: token,
+        updated_at: new Date().toISOString()
+      });
+
+    if (secretError) {
+      throw secretError;
+    }
+
+    console.log('Token updated successfully in secrets table');
     return { success: true };
   } catch (error) {
     console.error('Error updating refresh token:', error);
@@ -164,3 +175,4 @@ export const handleOperation = async (operation: string, payload: any): Promise<
       throw new Error(`Unknown operation: ${operation}`);
   }
 };
+

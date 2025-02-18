@@ -42,7 +42,7 @@ export const UpdateTokenDialog = ({ isOpen, onClose }: UpdateTokenDialogProps) =
     }
 
     try {
-      // Update the token in Supabase secrets
+      // Update the token using the edge function
       const { error } = await supabase.functions.invoke('google-drive-operations', {
         body: {
           operation: 'updateRefreshToken',
@@ -52,21 +52,12 @@ export const UpdateTokenDialog = ({ isOpen, onClose }: UpdateTokenDialogProps) =
 
       if (error) throw error;
 
-      // Update the timestamp in token_updates table
-      const { error: dbError } = await supabase
-        .from('token_updates')
-        .upsert({
-          updated_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          token_type: 'google_refresh'
-        })
-        .eq('token_type', 'google_refresh');
-
-      if (dbError) throw dbError;
-
       toast.success("Token updated successfully");
       onClose();
       setToken('');
+      
+      // Force reload the page to refresh token status
+      window.location.reload();
     } catch (error) {
       console.error('Error updating token:', error);
       toast.error("Failed to update token");
