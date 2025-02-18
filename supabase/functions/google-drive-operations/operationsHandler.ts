@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -40,8 +41,19 @@ async function createFolder(accessToken: string, folderName: string) {
       }),
     });
 
-    console.log('Folder created with ID:', folder.id);
-    return folder;
+    // Get the webViewLink for the folder
+    const folderResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}?fields=webViewLink`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!folderResponse.ok) {
+      throw new Error(`Failed to get folder webViewLink: ${folderResponse.statusText}`);
+    }
+
+    const folderData = await folderResponse.json();
+    return { ...folder, webViewLink: folderData.webViewLink };
   } catch (error) {
     console.error('Create folder error:', error);
     throw error;
@@ -75,8 +87,8 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       file.fileContent +
       close_delim;
 
-    // Upload the file
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    // Upload the file and request webViewLink in the same request
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -86,13 +98,20 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Upload response error:', errorText);
       throw new Error(`Failed to upload file: ${response.statusText}`);
     }
 
     const uploadedFile = await response.json();
+    console.log('File upload response:', uploadedFile);
+
+    if (!uploadedFile.id) {
+      throw new Error('File upload succeeded but no file ID was returned');
+    }
 
     // Make the file accessible via link
-    await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}/permissions`, {
+    const permissionResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}/permissions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -104,16 +123,13 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       }),
     });
 
-    // Get the webViewLink
-    const fileResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}?fields=webViewLink`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
-    
-    const fileData = await fileResponse.json();
-    console.log('File uploaded successfully:', fileData);
-    return fileData.webViewLink;
+    if (!permissionResponse.ok) {
+      console.error('Permission response error:', await permissionResponse.text());
+      throw new Error('Failed to set file permissions');
+    }
+
+    console.log('File uploaded successfully:', uploadedFile);
+    return uploadedFile.webViewLink;
   } catch (error) {
     console.error('Error uploading file:', error);
     throw error;
@@ -143,6 +159,8 @@ async function getAccessToken() {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Token refresh error:', errorText);
     throw new Error('Failed to get access token');
   }
 
@@ -198,6 +216,8 @@ export async function handleOperation(operation: string, payload: any) {
         });
 
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Delete folder error:', errorText);
           throw new Error(`Failed to delete folder: ${response.statusText}`);
         }
 
