@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
@@ -10,13 +9,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ExtractedData } from '@/types/data';
 import { PasswordDialog } from '@/components/PasswordDialog';
-import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
-import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format } from 'date-fns';
-
-type DialogMode = 'process' | 'update';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -24,95 +18,10 @@ const Index = () => {
   const [folderLink, setFolderLink] = useState<string>('');
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
-  const [isUpdateTokenDialogOpen, setIsUpdateTokenDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<DialogMode>('process');
-  const [tokenValidity, setTokenValidity] = useState<{ remainingDays: number; updateDate: Date | null }>({
-    remainingDays: 0,
-    updateDate: null
-  });
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchTokenValidity = async () => {
-      try {
-        console.log('[Token] Starting token fetch...');
-        
-        const { data, error } = await supabase
-          .from('secrets')
-          .select('updated_at')
-          .eq('key', 'GOOGLE_REFRESH_TOKEN')
-          .maybeSingle();
-
-        console.log('[Token] Query response:', { data, error });
-
-        if (error) {
-          console.error('[Token] Database error:', error);
-          toast.error('Failed to check token status');
-          return;
-        }
-
-        if (!data?.updated_at) {
-          console.log('[Token] No token found in database');
-          if (isMounted) {
-            setTokenValidity({ remainingDays: 0, updateDate: null });
-          }
-          return;
-        }
-
-        try {
-          const updateDate = new Date(data.updated_at);
-          
-          if (isNaN(updateDate.getTime())) {
-            throw new Error('Invalid date');
-          }
-
-          console.log('[Token] Parsed date:', updateDate.toISOString());
-          
-          const now = new Date();
-          console.log('[Token] Current date:', now.toISOString());
-
-          const timeDiff = now.getTime() - updateDate.getTime();
-          const daysSinceUpdate = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-          const remainingDays = Math.max(0, 7 - daysSinceUpdate);
-
-          console.log('[Token] Calculated values:', {
-            timeDiff,
-            daysSinceUpdate,
-            remainingDays
-          });
-
-          if (isMounted) {
-            setTokenValidity({
-              remainingDays,
-              updateDate
-            });
-          }
-        } catch (parseError) {
-          console.error('[Token] Date parsing error:', parseError);
-          toast.error('Error parsing token date');
-          if (isMounted) {
-            setTokenValidity({ remainingDays: 0, updateDate: null });
-          }
-        }
-      } catch (err) {
-        console.error('[Token] Unexpected error:', err);
-        toast.error('Failed to check token status');
-        if (isMounted) {
-          setTokenValidity({ remainingDays: 0, updateDate: null });
-        }
-      }
-    };
-
-    fetchTokenValidity();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
+    console.log('Files selected:', newFiles.map(f => ({ name: f.name, type: f.type })));
   };
 
   const handleProcessClick = () => {
@@ -120,31 +29,18 @@ const Index = () => {
       toast.error('Please select files first');
       return;
     }
-    setDialogMode('process');
     setIsPasswordDialogOpen(true);
-  };
-
-  const handleUpdateTokenClick = () => {
-    setDialogMode('update');
-    setIsPasswordDialogOpen(true);
-  };
-
-  const handlePasswordSuccess = () => {
-    setIsPasswordDialogOpen(false);
-    if (dialogMode === 'update') {
-      setIsUpdateTokenDialogOpen(true);
-    } else {
-      handleProcess();
-    }
   };
 
   const handleProcess = async () => {
+    console.log('Starting processing of files...');
     const result = await processFiles(files);
     
     if (result.folderLink) {
       setFolderLink(result.folderLink);
     }
     
+    // Separate complete and incomplete records
     const complete: ExtractedData[] = [];
     const incomplete: ExtractedData[] = [];
     
@@ -182,7 +78,10 @@ const Index = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
       toast.success('Folder deleted successfully');
       setFolderLink('');
     } catch (error) {
@@ -193,50 +92,20 @@ const Index = () => {
 
   const handleReview = (index: number) => {
     if (!processedData) return;
+    
     const itemToReview = processedData[index];
     setReviewData(prev => [...prev, itemToReview]);
+    
     const newProcessedData = processedData.filter((_, i) => i !== index);
     setProcessedData(newProcessedData);
   };
 
   const handleDataUpdate = (index: number, updatedData: Partial<ExtractedData>) => {
     if (!processedData) return;
+    
     const newData = [...processedData];
     newData[index] = { ...newData[index], ...updatedData };
     setProcessedData(newData);
-  };
-
-  const renderTokenStatus = () => {
-    console.log('[Token] Current token state:', tokenValidity);
-    
-    if (!tokenValidity.updateDate) {
-      console.log('[Token] No update date available');
-      return <span className="text-sm text-gray-500">No token available</span>;
-    }
-
-    const formattedDate = format(tokenValidity.updateDate, 'MMM dd, yyyy HH:mm');
-    const isExpired = tokenValidity.remainingDays <= 0;
-
-    console.log('[Token] Rendering status with:', {
-      formattedDate,
-      isExpired,
-      remainingDays: tokenValidity.remainingDays
-    });
-
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger>
-            <span className={`inline-flex items-center gap-1 text-sm ${isExpired ? 'text-red-500' : 'text-green-500'}`}>
-              {isExpired ? 'Token expired' : `Valid for ${tokenValidity.remainingDays} days`}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Token updated: {formattedDate}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
   };
 
   return (
@@ -257,15 +126,6 @@ const Index = () => {
             disabled={isProcessing || files.length === 0}
           >
             {isProcessing ? 'Processing...' : 'Process Files'}
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleUpdateTokenClick}
-            className="gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Update Drive Token
           </Button>
 
           {folderLink && (
@@ -291,19 +151,10 @@ const Index = () => {
           )}
         </div>
 
-        <div className="flex justify-center min-h-[24px]">
-          {renderTokenStatus()}
-        </div>
-
         <PasswordDialog
           isOpen={isPasswordDialogOpen}
           onClose={() => setIsPasswordDialogOpen(false)}
-          onSuccess={handlePasswordSuccess}
-        />
-
-        <UpdateTokenDialog
-          isOpen={isUpdateTokenDialogOpen}
-          onClose={() => setIsUpdateTokenDialogOpen(false)}
+          onSuccess={handleProcess}
         />
 
         <ProcessingStatus

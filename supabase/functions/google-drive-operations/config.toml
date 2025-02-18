@@ -1,8 +1,4 @@
-
 project_id = "knlytzqbcgiadfbdhzjq"
 
 [api]
 enabled = true
-
-[api.config]
-env_vars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]
