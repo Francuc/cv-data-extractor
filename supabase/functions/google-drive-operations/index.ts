@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,36 +18,30 @@ serve(async (req) => {
     const { operation, token } = await req.json();
     console.log(`Processing ${operation} operation with token length: ${token?.length || 0}`);
 
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          persistSession: false
+        }
+      }
+    );
+
     switch (operation) {
       case 'updateRefreshToken': {
-        // Log environment variables (without revealing sensitive data)
-        console.log('Project ID available:', !!Deno.env.get('PROJECT_ID'));
-        console.log('Service Role Key available:', !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+        // Store token in Supabase
+        const { error: upsertError } = await supabaseClient
+          .from('secrets')
+          .upsert({ 
+            key: 'GOOGLE_REFRESH_TOKEN',
+            value: token,
+            updated_at: new Date().toISOString()
+          });
 
-        // Update the secret using REST API directly
-        const url = `https://api.supabase.com/v1/projects/${Deno.env.get('PROJECT_ID')}/secrets`;
-        console.log('Making request to:', url);
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify([
-            {
-              name: 'GOOGLE_REFRESH_TOKEN',
-              value: token
-            }
-          ])
-        });
-
-        const responseText = await response.text();
-        console.log('Response status:', response.status);
-        console.log('Response body:', responseText);
-
-        if (!response.ok) {
-          throw new Error(`Failed to update secret: ${responseText}`);
+        if (upsertError) {
+          console.error('Failed to store token:', upsertError);
+          throw new Error(`Failed to store token: ${upsertError.message}`);
         }
 
         console.log('Token updated successfully');
