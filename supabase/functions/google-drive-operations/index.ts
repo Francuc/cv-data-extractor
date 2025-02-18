@@ -1,41 +1,53 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { corsHeaders } from './googleDriveUtils.ts';
-import { handleUploadFiles } from './operationsHandler.ts';
+import { handleOperation } from './operationsHandler.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      headers: corsHeaders
+    });
   }
 
   try {
-    const { operation, files } = await req.json();
-    console.log(`Processing ${operation} operation`);
+    const { operation, ...payload } = await req.json();
+    console.log(`Processing ${operation} operation with payload:`, payload);
 
-    if (operation === 'uploadFiles') {
-      if (!files || !Array.isArray(files)) {
-        throw new Error('No files data provided or invalid format');
+    const result = await handleOperation(operation, payload);
+    console.log(`Operation ${operation} completed successfully:`, result);
+
+    return new Response(
+      JSON.stringify(result),
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
-
-      console.log('Processing upload for', files.length, 'files');
-      const result = await handleUploadFiles(files);
-
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      );
-    }
-
-    throw new Error(`Unknown operation: ${operation}`);
+    );
 
   } catch (error) {
     console.error('Operation failed:', error);
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        details: error.stack
+        details: error.stack 
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 500
+      }
     );
   }
 });
