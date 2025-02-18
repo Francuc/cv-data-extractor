@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
@@ -104,15 +103,11 @@ const Index = () => {
       }
     };
 
-    // Initial fetch
+    // Only fetch once when component mounts
     fetchTokenValidity();
-
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchTokenValidity, 30000);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
     };
   }, []);
 
