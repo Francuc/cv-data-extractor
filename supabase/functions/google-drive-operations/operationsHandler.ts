@@ -136,14 +136,22 @@ export const deleteFolder = async (folderId: string): Promise<{ success: boolean
 
 export const updateRefreshToken = async (token: string): Promise<{ success: boolean }> => {
   try {
-    console.log('Attempting to update refresh token in secrets table');
+    console.log('Attempting to update refresh token in Edge Function Secrets');
     
-    // Update the token in the secrets table
+    // Update the token in Edge Function Secrets
+    const { error: configError } = await _supabaseAdmin.functions.config.set([
+      { name: 'GOOGLE_REFRESH_TOKEN', value: token }
+    ]);
+
+    if (configError) {
+      throw configError;
+    }
+
+    // Also update the timestamp in the secrets table for UI tracking
     const { error: secretError } = await _supabaseAdmin
       .from('secrets')
       .upsert({
         key: 'GOOGLE_REFRESH_TOKEN',
-        value: token,
         updated_at: new Date().toISOString()
       });
 
@@ -151,7 +159,7 @@ export const updateRefreshToken = async (token: string): Promise<{ success: bool
       throw secretError;
     }
 
-    console.log('Token updated successfully in secrets table');
+    console.log('Token updated successfully in Edge Function Secrets');
     return { success: true };
   } catch (error) {
     console.error('Error updating refresh token:', error);
@@ -175,4 +183,3 @@ export const handleOperation = async (operation: string, payload: any): Promise<
       throw new Error(`Unknown operation: ${operation}`);
   }
 };
-
