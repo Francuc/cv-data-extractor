@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
@@ -13,7 +14,9 @@ import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
 import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
+
+type DialogMode = 'process' | 'update';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -22,6 +25,7 @@ const Index = () => {
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isUpdateTokenDialogOpen, setIsUpdateTokenDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<DialogMode>('process');
   const [tokenValidity, setTokenValidity] = useState<{ remainingDays: number; updateDate: Date | null }>({
     remainingDays: 0,
     updateDate: null
@@ -57,10 +61,8 @@ const Index = () => {
         }
 
         try {
-          // PostgreSQL returns an ISO 8601 formatted string, so we can parse it directly
           const updateDate = new Date(data.updated_at);
           
-          // Validate that we got a valid date
           if (isNaN(updateDate.getTime())) {
             throw new Error('Invalid date');
           }
@@ -70,7 +72,6 @@ const Index = () => {
           const now = new Date();
           console.log('[Token] Current date:', now.toISOString());
 
-          // Calculate days remaining (7 days validity period)
           const timeDiff = now.getTime() - updateDate.getTime();
           const daysSinceUpdate = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
           const remainingDays = Math.max(0, 7 - daysSinceUpdate);
@@ -103,7 +104,6 @@ const Index = () => {
       }
     };
 
-    // Only fetch once when component mounts
     fetchTokenValidity();
 
     return () => {
@@ -120,16 +120,22 @@ const Index = () => {
       toast.error('Please select files first');
       return;
     }
+    setDialogMode('process');
     setIsPasswordDialogOpen(true);
   };
 
   const handleUpdateTokenClick = () => {
+    setDialogMode('update');
     setIsPasswordDialogOpen(true);
   };
 
   const handlePasswordSuccess = () => {
     setIsPasswordDialogOpen(false);
-    setIsUpdateTokenDialogOpen(true);
+    if (dialogMode === 'update') {
+      setIsUpdateTokenDialogOpen(true);
+    } else {
+      handleProcess();
+    }
   };
 
   const handleProcess = async () => {
