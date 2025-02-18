@@ -14,7 +14,7 @@ import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
 import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -57,46 +57,58 @@ const Index = () => {
           return;
         }
 
-        // Ensure UTC date handling
-        const rawDate = data.updated_at;
-        console.log('[Token] Raw date from DB:', rawDate);
-        
-        const updateDate = new Date(rawDate.endsWith('Z') ? rawDate : rawDate + 'Z');
-        const now = new Date();
-        
-        console.log('[Token] Parsed dates:', {
-          updateDate: updateDate.toISOString(),
-          now: now.toISOString()
-        });
+        try {
+          // PostgreSQL returns an ISO 8601 formatted string, so we can parse it directly
+          const updateDate = new Date(data.updated_at);
+          
+          // Validate that we got a valid date
+          if (isNaN(updateDate.getTime())) {
+            throw new Error('Invalid date');
+          }
 
-        // Calculate days remaining
-        const timeDiff = now.getTime() - updateDate.getTime();
-        const daysSinceUpdate = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-        const remainingDays = Math.max(0, 7 - daysSinceUpdate);
+          console.log('[Token] Parsed date:', updateDate.toISOString());
+          
+          const now = new Date();
+          console.log('[Token] Current date:', now.toISOString());
 
-        console.log('[Token] Calculated values:', {
-          timeDiff,
-          daysSinceUpdate,
-          remainingDays
-        });
+          // Calculate days remaining (7 days validity period)
+          const timeDiff = now.getTime() - updateDate.getTime();
+          const daysSinceUpdate = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+          const remainingDays = Math.max(0, 7 - daysSinceUpdate);
 
-        if (isMounted) {
-          setTokenValidity({
-            remainingDays,
-            updateDate
+          console.log('[Token] Calculated values:', {
+            timeDiff,
+            daysSinceUpdate,
+            remainingDays
           });
+
+          if (isMounted) {
+            setTokenValidity({
+              remainingDays,
+              updateDate
+            });
+          }
+        } catch (parseError) {
+          console.error('[Token] Date parsing error:', parseError);
+          toast.error('Error parsing token date');
+          if (isMounted) {
+            setTokenValidity({ remainingDays: 0, updateDate: null });
+          }
         }
       } catch (err) {
         console.error('[Token] Unexpected error:', err);
         toast.error('Failed to check token status');
+        if (isMounted) {
+          setTokenValidity({ remainingDays: 0, updateDate: null });
+        }
       }
     };
 
     // Initial fetch
     fetchTokenValidity();
 
-    // Poll for updates every minute instead of using realtime subscription
-    const interval = setInterval(fetchTokenValidity, 60000);
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchTokenValidity, 30000);
 
     return () => {
       isMounted = false;
