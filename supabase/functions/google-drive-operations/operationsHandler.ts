@@ -8,31 +8,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Initialize service account with proper error handling
-let auth;
-let drive;
-
-try {
-  const serviceAccount = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON') || '{}');
-  
-  if (!serviceAccount.client_email || !serviceAccount.private_key) {
-    console.error('Invalid or missing service account credentials');
-    throw new Error('Service account configuration is invalid');
-  }
-
-  auth = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-
-  drive = google.drive({ version: 'v3', auth });
-  
-} catch (error) {
-  console.error('Error initializing Google service account:', error);
-  throw new Error('Failed to initialize Google Drive service');
-}
-
 const _supabaseAdmin = createClient(
   Deno.env.get('SUPABASE_URL') || '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
@@ -43,10 +18,58 @@ const _supabaseAdmin = createClient(
   }
 );
 
+// Get refresh token from secrets table
+async function getRefreshToken(): Promise<string> {
+  const { data, error } = await _supabaseAdmin
+    .from('secrets')
+    .select('value')
+    .eq('key', 'GOOGLE_REFRESH_TOKEN')
+    .single();
+
+  if (error) {
+    console.error('Error fetching refresh token:', error);
+    throw new Error('Failed to fetch refresh token');
+  }
+
+  if (!data?.value) {
+    throw new Error('No refresh token found');
+  }
+
+  return data.value;
+}
+
+// Initialize service account with proper error handling
+async function initializeGoogleDrive() {
+  try {
+    const serviceAccount = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON') || '{}');
+    const refreshToken = await getRefreshToken();
+    
+    if (!serviceAccount.client_email || !serviceAccount.private_key) {
+      console.error('Invalid or missing service account credentials');
+      throw new Error('Service account configuration is invalid');
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      Deno.env.get('GOOGLE_CLIENT_ID'),
+      Deno.env.get('GOOGLE_CLIENT_SECRET')
+    );
+
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
+
+    return google.drive({ version: 'v3', auth: oauth2Client });
+  } catch (error) {
+    console.error('Error initializing Google Drive:', error);
+    throw new Error('Failed to initialize Google Drive service');
+  }
+}
+
 export const createFolder = async (folderName: string): Promise<string> => {
   try {
     console.log('Creating folder:', folderName);
     
+    const drive = await initializeGoogleDrive();
     const folderMetadata = {
       name: folderName,
       mimeType: 'application/vnd.google-apps.folder',
@@ -74,6 +97,7 @@ export const uploadFiles = async (files: any[]): Promise<{ fileLinks: string[], 
   try {
     console.log('Starting file upload process for', files.length, 'files');
     
+    const drive = await initializeGoogleDrive();
     const folderName = `CV_Uploads_${new Date().toISOString()}`;
     const folderLink = await createFolder(folderName);
     const folderId = folderLink.split('/').pop();
@@ -123,6 +147,7 @@ export const uploadFiles = async (files: any[]): Promise<{ fileLinks: string[], 
 export const deleteFolder = async (folderId: string): Promise<{ success: boolean }> => {
   try {
     console.log('Attempting to delete folder:', folderId);
+    const drive = await initializeGoogleDrive();
     await drive.files.delete({
       fileId: folderId,
     });
@@ -136,22 +161,14 @@ export const deleteFolder = async (folderId: string): Promise<{ success: boolean
 
 export const updateRefreshToken = async (token: string): Promise<{ success: boolean }> => {
   try {
-    console.log('Attempting to update refresh token in Edge Function Secrets');
+    console.log('Attempting to update refresh token in secrets table');
     
-    // Update the token in Edge Function Secrets
-    const { error: configError } = await _supabaseAdmin.functions.config.set([
-      { name: 'GOOGLE_REFRESH_TOKEN', value: token }
-    ]);
-
-    if (configError) {
-      throw configError;
-    }
-
-    // Also update the timestamp in the secrets table for UI tracking
+    // Update the token in the secrets table
     const { error: secretError } = await _supabaseAdmin
       .from('secrets')
       .upsert({
         key: 'GOOGLE_REFRESH_TOKEN',
+        value: token,
         updated_at: new Date().toISOString()
       });
 
@@ -159,7 +176,7 @@ export const updateRefreshToken = async (token: string): Promise<{ success: bool
       throw secretError;
     }
 
-    console.log('Token updated successfully in Edge Function Secrets');
+    console.log('Token updated successfully in secrets table');
     return { success: true };
   } catch (error) {
     console.error('Error updating refresh token:', error);
@@ -183,3 +200,4 @@ export const handleOperation = async (operation: string, payload: any): Promise<
       throw new Error(`Unknown operation: ${operation}`);
   }
 };
+
