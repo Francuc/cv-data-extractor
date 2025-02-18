@@ -31,7 +31,8 @@ const Index = () => {
         .from('token_updates')
         .select('expires_at')
         .eq('token_type', 'google_refresh')
-        .single();
+        .order('updated_at', { ascending: false })
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching token expiration:', error);
