@@ -1,4 +1,5 @@
 
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { google } from 'npm:googleapis';
 
 const corsHeaders = {
@@ -7,7 +8,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Initialize OAuth2 client with proper error handling
 async function initializeGoogleDrive() {
   try {
     const oauth2Client = new google.auth.OAuth2(
@@ -26,11 +26,10 @@ async function initializeGoogleDrive() {
   }
 }
 
-export async function createFolder(folderName: string) {
+async function createFolder(drive: any, folderName: string) {
   try {
     console.log('Creating folder:', folderName);
     
-    const drive = await initializeGoogleDrive();
     const folderMetadata = {
       name: folderName,
       mimeType: 'application/vnd.google-apps.folder',
@@ -38,12 +37,21 @@ export async function createFolder(folderName: string) {
 
     const folder = await drive.files.create({
       requestBody: folderMetadata,
-      fields: 'id',
+      fields: 'id, webViewLink',  // Request both id and webViewLink
     });
 
     if (!folder.data.id) {
-      throw new Error('Folder ID not found');
+      throw new Error('Folder ID not found in response');
     }
+
+    // Make the folder accessible via link
+    await drive.permissions.create({
+      fileId: folder.data.id,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone'
+      }
+    });
 
     console.log('Folder created with ID:', folder.data.id);
     return folder.data;
@@ -54,7 +62,7 @@ export async function createFolder(folderName: string) {
 }
 
 async function uploadFile(drive: any, file: any, folderId: string) {
-  console.log(`Uploading file: ${file.fileName}`);
+  console.log(`Uploading file: ${file.fileName} to folder: ${folderId}`);
   
   try {
     const binaryStr = atob(file.fileContent);
@@ -68,56 +76,35 @@ async function uploadFile(drive: any, file: any, folderId: string) {
       parents: [folderId]
     };
 
-    const boundary = '-------314159265358979323846';
-    const delimiter = "\r\n--" + boundary + "\r\n";
-    const close_delim = "\r\n--" + boundary + "--";
+    // Use the Drive API's upload method
+    const media = {
+      mimeType: file.mimeType,
+      body: bytes
+    };
 
-    const multipartRequestBody =
-      delimiter +
-      'Content-Type: application/json\r\n\r\n' +
-      JSON.stringify(fileMetadata) +
-      delimiter +
-      'Content-Type: ' + file.mimeType + '\r\n\r\n';
+    const uploadedFile = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, webViewLink',  // Request both id and webViewLink
+    });
 
-    const requestParts = [
-      new TextEncoder().encode(multipartRequestBody),
-      bytes,
-      new TextEncoder().encode(close_delim)
-    ];
-    
-    const requestBody = new Uint8Array(
-      requestParts.reduce((acc, part) => acc + part.length, 0)
-    );
-    
-    let offset = 0;
-    for (const part of requestParts) {
-      requestBody.set(part, offset);
-      offset += part.length;
+    if (!uploadedFile.data.id) {
+      throw new Error('File ID not found in response');
     }
 
-    const fileResponse = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', 
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await drive.auth.getAccessToken()).token}`,
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-        },
-        body: requestBody,
+    // Make the file accessible via link
+    await drive.permissions.create({
+      fileId: uploadedFile.data.id,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone'
       }
-    );
+    });
 
-    if (!fileResponse.ok) {
-      const errorText = await fileResponse.text();
-      console.error('Upload failed:', errorText);
-      throw new Error(`Failed to upload file: ${errorText}`);
-    }
-
-    const uploadedFile = await fileResponse.json();
-    console.log('File uploaded with ID:', uploadedFile.id);
-    return uploadedFile.webViewLink;
+    console.log('File uploaded successfully:', uploadedFile.data);
+    return uploadedFile.data.webViewLink;
   } catch (error) {
-    console.error('Error processing file:', error);
+    console.error('Error uploading file:', error);
     throw error;
   }
 }
@@ -125,34 +112,32 @@ async function uploadFile(drive: any, file: any, folderId: string) {
 export async function handleOperation(operation: string, payload: any) {
   console.log(`Handling operation: ${operation}`);
   
+  const drive = await initializeGoogleDrive();
+  
   switch (operation) {
     case 'uploadFiles': {
       console.log('Starting batch file upload process');
       const { files } = payload;
       
       try {
-        const drive = await initializeGoogleDrive();
-        
         // Create a folder for the batch
         const now = new Date();
         const folderName = `CV_Batch_${now.toISOString().replace(/[:.]/g, '-')}`;
         console.log('Creating folder:', folderName);
         
-        const folder = await createFolder(folderName);
-        console.log('Folder created with ID:', folder.id);
+        const folder = await createFolder(drive, folderName);
+        console.log('Folder created:', folder);
 
         // Upload all files to the folder
         console.log('Starting file uploads, total files:', files.length);
-        const uploadPromises = files.map(async (file: any) => {
-          return await uploadFile(drive, file, folder.id);
-        });
+        const uploadPromises = files.map((file: any) => uploadFile(drive, file, folder.id));
 
         const fileLinks = await Promise.all(uploadPromises);
-        console.log('All files uploaded successfully');
+        console.log('All files uploaded successfully. Links:', fileLinks);
 
         return { 
           fileLinks,
-          folderLink: `https://drive.google.com/drive/folders/${folder.id}`
+          folderLink: folder.webViewLink
         };
       } catch (error) {
         console.error('Error in handleUploadFiles:', error);
@@ -164,7 +149,6 @@ export async function handleOperation(operation: string, payload: any) {
       const { folderId } = payload;
       
       try {
-        const drive = await initializeGoogleDrive();
         await drive.files.delete({
           fileId: folderId
         });
@@ -179,3 +163,31 @@ export async function handleOperation(operation: string, payload: any) {
       throw new Error(`Unknown operation: ${operation}`);
   }
 }
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { operation, files, folderId } = await req.json();
+    console.log(`Processing ${operation} operation`);
+
+    const result = await handleOperation(operation, { files, folderId });
+    
+    return new Response(
+      JSON.stringify(result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    );
+  } catch (error) {
+    console.error('Operation failed:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+});
