@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
@@ -12,7 +13,7 @@ import { PasswordDialog } from '@/components/PasswordDialog';
 import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
 import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Tooltip } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 
 const Index = () => {
@@ -151,11 +152,18 @@ const Index = () => {
     const formattedDate = format(expirationDate, 'MMM dd, yyyy HH:mm');
 
     return (
-      <Tooltip content={`Token expires: ${formattedDate}`}>
-        <span className={`inline-flex items-center gap-1 text-sm ${isExpired ? 'text-red-500' : 'text-green-500'}`}>
-          {isExpired ? 'Token expired' : 'Token valid'}
-        </span>
-      </Tooltip>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <span className={`inline-flex items-center gap-1 text-sm ${isExpired ? 'text-red-500' : 'text-green-500'}`}>
+              {isExpired ? 'Token expired' : 'Token valid'}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Token expires: {formattedDate}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   };
 

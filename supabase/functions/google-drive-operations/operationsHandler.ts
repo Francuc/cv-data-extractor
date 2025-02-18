@@ -1,5 +1,6 @@
+
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
+import { google } from 'npm:googleapis';
 
 const serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
 
@@ -60,11 +61,9 @@ export const deleteFolder = async (folderId: string): Promise<{ success: boolean
 
 export const updateRefreshToken = async (token: string): Promise<{ success: boolean }> => {
   try {
-    // Store the new refresh token in Supabase secrets
     await _supabaseAdmin.functions.config.set([
       { name: 'GOOGLE_REFRESH_TOKEN', value: token }
     ]);
-    
     return { success: true };
   } catch (error) {
     console.error('Error updating refresh token:', error);
