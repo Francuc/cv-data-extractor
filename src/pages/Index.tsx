@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
@@ -9,8 +9,11 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ExtractedData } from '@/types/data';
 import { PasswordDialog } from '@/components/PasswordDialog';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
+import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Tooltip } from '@/components/ui/tooltip';
+import { format } from 'date-fns';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -18,6 +21,29 @@ const Index = () => {
   const [folderLink, setFolderLink] = useState<string>('');
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [isUpdateTokenDialogOpen, setIsUpdateTokenDialogOpen] = useState(false);
+  const [tokenExpiration, setTokenExpiration] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTokenExpiration = async () => {
+      const { data, error } = await supabase
+        .from('token_updates')
+        .select('expires_at')
+        .eq('token_type', 'google_refresh')
+        .single();
+
+      if (error) {
+        console.error('Error fetching token expiration:', error);
+        return;
+      }
+
+      if (data?.expires_at) {
+        setTokenExpiration(data.expires_at);
+      }
+    };
+
+    fetchTokenExpiration();
+  }, [isUpdateTokenDialogOpen]);
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
@@ -32,6 +58,15 @@ const Index = () => {
     setIsPasswordDialogOpen(true);
   };
 
+  const handleUpdateTokenClick = () => {
+    setIsPasswordDialogOpen(true);
+  };
+
+  const handlePasswordSuccess = () => {
+    setIsPasswordDialogOpen(false);
+    setIsUpdateTokenDialogOpen(true);
+  };
+
   const handleProcess = async () => {
     console.log('Starting processing of files...');
     const result = await processFiles(files);
@@ -40,7 +75,6 @@ const Index = () => {
       setFolderLink(result.folderLink);
     }
     
-    // Separate complete and incomplete records
     const complete: ExtractedData[] = [];
     const incomplete: ExtractedData[] = [];
     
@@ -108,6 +142,23 @@ const Index = () => {
     setProcessedData(newData);
   };
 
+  const renderTokenStatus = () => {
+    if (!tokenExpiration) return null;
+
+    const expirationDate = new Date(tokenExpiration);
+    const now = new Date();
+    const isExpired = expirationDate < now;
+    const formattedDate = format(expirationDate, 'MMM dd, yyyy HH:mm');
+
+    return (
+      <Tooltip content={`Token expires: ${formattedDate}`}>
+        <span className={`inline-flex items-center gap-1 text-sm ${isExpired ? 'text-red-500' : 'text-green-500'}`}>
+          {isExpired ? 'Token expired' : 'Token valid'}
+        </span>
+      </Tooltip>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto space-y-8">
@@ -126,6 +177,15 @@ const Index = () => {
             disabled={isProcessing || files.length === 0}
           >
             {isProcessing ? 'Processing...' : 'Process Files'}
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleUpdateTokenClick}
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Update Drive Token
           </Button>
 
           {folderLink && (
@@ -151,10 +211,19 @@ const Index = () => {
           )}
         </div>
 
+        <div className="flex justify-center">
+          {renderTokenStatus()}
+        </div>
+
         <PasswordDialog
           isOpen={isPasswordDialogOpen}
           onClose={() => setIsPasswordDialogOpen(false)}
-          onSuccess={handleProcess}
+          onSuccess={handlePasswordSuccess}
+        />
+
+        <UpdateTokenDialog
+          isOpen={isUpdateTokenDialogOpen}
+          onClose={() => setIsUpdateTokenDialogOpen(false)}
         />
 
         <ProcessingStatus

@@ -1,106 +1,86 @@
-import { getAccessToken, createFolder } from './googleDriveUtils.ts';
+import { createClient } from '@supabase/supabase-js';
+import { google } from 'googleapis';
 
-export async function handleUploadFiles(files: any[]) {
-  console.log('Starting batch file upload process');
-  
+const serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
+
+const _supabaseAdmin = createClient(
+  process.env.SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+  {
+    auth: {
+      persistSession: false
+    }
+  }
+);
+
+const SCOPES = ['https://www.googleapis.com/auth/drive'];
+
+const auth = new google.auth.JWT({
+  email: serviceAccount.client_email,
+  key: serviceAccount.private_key,
+  scopes: SCOPES,
+});
+
+const drive = google.drive({ version: 'v3', auth });
+
+export const createFolder = async (folderName: string): Promise<string> => {
   try {
-    const access_token = await getAccessToken();
-    console.log('Successfully obtained access token');
+    const folderMetadata = {
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+    };
 
-    // Create a folder for the batch
-    const now = new Date();
-    const folderName = `CV_Batch_${now.toISOString().replace(/[:.]/g, '-')}`;
-    console.log('Creating folder:', folderName);
-    
-    const folder = await createFolder(access_token, folderName);
-    console.log('Folder created with ID:', folder.id);
-
-    // Upload all files to the folder
-    console.log('Starting file uploads, total files:', files.length);
-    const uploadPromises = files.map(async (file) => {
-      console.log(`Uploading file: ${file.fileName}`);
-      const fileLink = await uploadFile(access_token, file, folder.id);
-      return fileLink;
+    const folder = await drive.files.create({
+      requestBody: folderMetadata,
+      fields: 'id',
     });
 
-    const fileLinks = await Promise.all(uploadPromises);
-    console.log('All files uploaded successfully');
+    if (!folder.data.id) {
+      throw new Error('Folder ID not found');
+    }
 
-    return { 
-      fileLinks,
-      folderLink: `https://drive.google.com/drive/folders/${folder.id}`
-    };
+    return `https://drive.google.com/drive/folders/${folder.data.id}`;
   } catch (error) {
-    console.error('Error in handleUploadFiles:', error);
-    throw error;
+    console.error('Create folder error:', error);
+    throw new Error('Failed to create folder');
   }
-}
+};
 
-async function uploadFile(access_token: string, file: any, folderId: string) {
-  console.log('Uploading file:', file.fileName);
-  
+export const deleteFolder = async (folderId: string): Promise<{ success: boolean }> => {
   try {
-    const binaryStr = atob(file.fileContent);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-
-    const fileMetadata = {
-      name: file.fileName,
-      parents: [folderId]
-    };
-
-    const boundary = '-------314159265358979323846';
-    const delimiter = "\r\n--" + boundary + "\r\n";
-    const close_delim = "\r\n--" + boundary + "--";
-
-    const multipartRequestBody =
-      delimiter +
-      'Content-Type: application/json\r\n\r\n' +
-      JSON.stringify(fileMetadata) +
-      delimiter +
-      'Content-Type: ' + file.mimeType + '\r\n\r\n';
-
-    const requestParts = [
-      new TextEncoder().encode(multipartRequestBody),
-      bytes,
-      new TextEncoder().encode(close_delim)
-    ];
-    
-    const requestBody = new Uint8Array(
-      requestParts.reduce((acc, part) => acc + part.length, 0)
-    );
-    
-    let offset = 0;
-    for (const part of requestParts) {
-      requestBody.set(part, offset);
-      offset += part.length;
-    }
-
-    const fileResponse = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', 
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${access_token}`,
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-        },
-        body: requestBody,
-      }
-    );
-
-    if (!fileResponse.ok) {
-      const errorText = await fileResponse.text();
-      console.error('Upload failed:', errorText);
-      throw new Error(`Failed to upload file: ${errorText}`);
-    }
-
-    const uploadedFile = await fileResponse.json();
-    console.log('File uploaded with ID:', uploadedFile.id);
-    return uploadedFile.webViewLink;
+    await drive.files.delete({
+      fileId: folderId,
+    });
+    return { success: true };
   } catch (error) {
-    console.error('Error processing file:', error);
-    throw error;
+    console.error('Delete folder error:', error);
+    throw new Error('Failed to delete folder');
   }
-}
+};
+
+export const updateRefreshToken = async (token: string): Promise<{ success: boolean }> => {
+  try {
+    // Store the new refresh token in Supabase secrets
+    await _supabaseAdmin.functions.config.set([
+      { name: 'GOOGLE_REFRESH_TOKEN', value: token }
+    ]);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating refresh token:', error);
+    throw new Error('Failed to update refresh token');
+  }
+};
+
+export const handleOperation = async (operation: string, payload: any): Promise<any> => {
+  switch (operation) {
+    case 'createFolder':
+      return await createFolder(payload.folderName);
+    case 'deleteFolder':
+      return await deleteFolder(payload.folderId);
+    case 'updateRefreshToken':
+      return await updateRefreshToken(payload.token);
+    default:
+      throw new Error(`Unknown operation: ${operation}`);
+  }
+};
