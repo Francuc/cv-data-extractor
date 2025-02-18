@@ -145,7 +145,13 @@ const Index = () => {
   };
 
   const renderTokenStatus = () => {
-    if (!tokenUpdatedAt) return null;
+    if (!tokenUpdatedAt) {
+      return (
+        <span className="text-sm text-gray-500">
+          No token available
+        </span>
+      );
+    }
 
     const updateDate = new Date(tokenUpdatedAt);
     const now = new Date();
@@ -222,7 +228,7 @@ const Index = () => {
           )}
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center min-h-[24px]">
           {renderTokenStatus()}
         </div>
 
