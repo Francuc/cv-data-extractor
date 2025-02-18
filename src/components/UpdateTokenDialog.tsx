@@ -43,21 +43,22 @@ export const UpdateTokenDialog = ({ isOpen, onClose }: UpdateTokenDialogProps) =
 
     try {
       // Update the token in Supabase secrets
-      const { error: secretError } = await supabase.functions.invoke('google-drive-operations', {
+      const { error } = await supabase.functions.invoke('google-drive-operations', {
         body: {
           operation: 'updateRefreshToken',
           token: token
         }
       });
 
-      if (secretError) throw secretError;
+      if (error) throw error;
 
-      // Update the token_updates table
+      // Update the timestamp in token_updates table
       const { error: dbError } = await supabase
         .from('token_updates')
-        .update({
+        .upsert({
           updated_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          token_type: 'google_refresh'
         })
         .eq('token_type', 'google_refresh');
 
