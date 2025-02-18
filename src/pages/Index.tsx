@@ -29,75 +29,78 @@ const Index = () => {
   });
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchTokenValidity = async () => {
-      console.log('[Token] Fetching token validity...');
-      
-      const { data, error } = await supabase
-        .from('secrets')
-        .select('updated_at')
-        .eq('key', 'GOOGLE_REFRESH_TOKEN')
-        .maybeSingle();
+      try {
+        console.log('[Token] Starting token fetch...');
+        
+        const { data, error } = await supabase
+          .from('secrets')
+          .select('updated_at')
+          .eq('key', 'GOOGLE_REFRESH_TOKEN')
+          .maybeSingle();
 
-      if (error) {
-        console.error('[Token] Error fetching token:', error);
-        return;
-      }
+        console.log('[Token] Query response:', { data, error });
 
-      console.log('[Token] Raw data from database:', data);
+        if (error) {
+          console.error('[Token] Database error:', error);
+          toast.error('Failed to check token status');
+          return;
+        }
 
-      if (data?.updated_at) {
-        // Ensure proper UTC parsing by appending 'Z' if not present
-        const updateDate = new Date(data.updated_at.endsWith('Z') ? data.updated_at : data.updated_at + 'Z');
+        if (!data?.updated_at) {
+          console.log('[Token] No token found in database');
+          if (isMounted) {
+            setTokenValidity({ remainingDays: 0, updateDate: null });
+          }
+          return;
+        }
+
+        // Ensure UTC date handling
+        const rawDate = data.updated_at;
+        console.log('[Token] Raw date from DB:', rawDate);
+        
+        const updateDate = new Date(rawDate.endsWith('Z') ? rawDate : rawDate + 'Z');
         const now = new Date();
         
-        console.log('[Token] Update date (UTC):', updateDate.toISOString());
-        console.log('[Token] Current date (UTC):', now.toISOString());
-        
-        // Calculate days difference using milliseconds for more precise calculation
-        const daysSinceUpdate = Math.floor((now.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-        const remainingDays = Math.max(0, 7 - daysSinceUpdate);
-        
-        console.log('[Token] Days since update:', daysSinceUpdate);
-        console.log('[Token] Remaining days:', remainingDays);
+        console.log('[Token] Parsed dates:', {
+          updateDate: updateDate.toISOString(),
+          now: now.toISOString()
+        });
 
-        setTokenValidity({
-          remainingDays,
-          updateDate
+        // Calculate days remaining
+        const timeDiff = now.getTime() - updateDate.getTime();
+        const daysSinceUpdate = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+        const remainingDays = Math.max(0, 7 - daysSinceUpdate);
+
+        console.log('[Token] Calculated values:', {
+          timeDiff,
+          daysSinceUpdate,
+          remainingDays
         });
-      } else {
-        console.log('[Token] No token data found in database');
-        setTokenValidity({
-          remainingDays: 0,
-          updateDate: null
-        });
+
+        if (isMounted) {
+          setTokenValidity({
+            remainingDays,
+            updateDate
+          });
+        }
+      } catch (err) {
+        console.error('[Token] Unexpected error:', err);
+        toast.error('Failed to check token status');
       }
     };
 
+    // Initial fetch
     fetchTokenValidity();
 
-    // Subscribe to token updates
-    const channel = supabase
-      .channel('token-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'secrets',
-          filter: 'key=eq.GOOGLE_REFRESH_TOKEN'
-        },
-        (payload) => {
-          console.log('[Token] Received real-time update:', payload);
-          fetchTokenValidity();
-        }
-      )
-      .subscribe((status) => {
-        console.log('[Token] Subscription status:', status);
-      });
+    // Poll for updates every minute instead of using realtime subscription
+    const interval = setInterval(fetchTokenValidity, 60000);
 
     return () => {
-      console.log('[Token] Cleaning up subscription');
-      supabase.removeChannel(channel);
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -191,14 +194,21 @@ const Index = () => {
   };
 
   const renderTokenStatus = () => {
-    console.log('[Token] Rendering token status:', tokenValidity);
+    console.log('[Token] Current token state:', tokenValidity);
     
     if (!tokenValidity.updateDate) {
+      console.log('[Token] No update date available');
       return <span className="text-sm text-gray-500">No token available</span>;
     }
 
     const formattedDate = format(tokenValidity.updateDate, 'MMM dd, yyyy HH:mm');
     const isExpired = tokenValidity.remainingDays <= 0;
+
+    console.log('[Token] Rendering status with:', {
+      formattedDate,
+      isExpired,
+      remainingDays: tokenValidity.remainingDays
+    });
 
     return (
       <TooltipProvider>
