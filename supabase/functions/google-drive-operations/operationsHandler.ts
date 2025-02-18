@@ -1,5 +1,4 @@
 
-import { createClient } from 'npm:@supabase/supabase-js';
 import { google } from 'npm:googleapis';
 
 const corsHeaders = {
@@ -8,48 +7,16 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const _supabaseAdmin = createClient(
-  Deno.env.get('SUPABASE_URL') || '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-  {
-    auth: {
-      persistSession: false
-    }
-  }
-);
-
-// Get refresh token from secrets table
-async function getRefreshToken(): Promise<string> {
-  const { data, error } = await _supabaseAdmin
-    .from('secrets')
-    .select('value')
-    .eq('key', 'GOOGLE_REFRESH_TOKEN')
-    .single();
-
-  if (error) {
-    console.error('Error fetching refresh token:', error);
-    throw new Error('Failed to fetch refresh token');
-  }
-
-  if (!data?.value) {
-    throw new Error('No refresh token found');
-  }
-
-  return data.value;
-}
-
 // Initialize OAuth2 client with proper error handling
 async function initializeGoogleDrive() {
   try {
-    const refreshToken = await getRefreshToken();
-    
     const oauth2Client = new google.auth.OAuth2(
       Deno.env.get('GOOGLE_CLIENT_ID'),
       Deno.env.get('GOOGLE_CLIENT_SECRET')
     );
 
     oauth2Client.setCredentials({
-      refresh_token: refreshToken
+      refresh_token: Deno.env.get('GOOGLE_REFRESH_TOKEN')
     });
 
     return google.drive({ version: 'v3', auth: oauth2Client });
@@ -155,31 +122,6 @@ async function uploadFile(drive: any, file: any, folderId: string) {
   }
 }
 
-export async function updateRefreshToken(token: string) {
-  try {
-    console.log('Updating refresh token');
-    
-    // Update the token in the secrets table
-    const { error: secretError } = await _supabaseAdmin
-      .from('secrets')
-      .upsert({
-        key: 'GOOGLE_REFRESH_TOKEN',
-        value: token,
-        updated_at: new Date().toISOString()
-      });
-
-    if (secretError) {
-      throw secretError;
-    }
-
-    console.log('Token updated successfully');
-    return { success: true };
-  } catch (error) {
-    console.error('Error updating refresh token:', error);
-    throw error;
-  }
-}
-
 export async function handleOperation(operation: string, payload: any) {
   console.log(`Handling operation: ${operation}`);
   
@@ -217,9 +159,21 @@ export async function handleOperation(operation: string, payload: any) {
         throw error;
       }
     }
-    case 'updateRefreshToken': {
-      const { token } = payload;
-      return await updateRefreshToken(token);
+    case 'deleteFolder': {
+      console.log('Starting folder deletion process');
+      const { folderId } = payload;
+      
+      try {
+        const drive = await initializeGoogleDrive();
+        await drive.files.delete({
+          fileId: folderId
+        });
+        console.log('Folder deleted successfully');
+        return { success: true };
+      } catch (error) {
+        console.error('Error deleting folder:', error);
+        throw error;
+      }
     }
     default:
       throw new Error(`Unknown operation: ${operation}`);

@@ -14,10 +14,10 @@ serve(async (req) => {
   }
 
   try {
-    const { operation, files, token } = await req.json();
+    const { operation, files, folderId } = await req.json();
     console.log(`Processing ${operation} operation`);
 
-    const result = await handleOperation(operation, { files, token });
+    const result = await handleOperation(operation, { files, folderId });
     
     return new Response(
       JSON.stringify(result),
