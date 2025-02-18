@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
@@ -22,36 +23,48 @@ const Index = () => {
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isUpdateTokenDialogOpen, setIsUpdateTokenDialogOpen] = useState(false);
-  const [tokenUpdatedAt, setTokenUpdatedAt] = useState<string | null>(null);
-
-  const fetchTokenUpdate = async () => {
-    console.log('Fetching token update...');
-    const { data, error } = await supabase
-      .from('secrets')
-      .select('updated_at')
-      .eq('key', 'GOOGLE_REFRESH_TOKEN')
-      .order('updated_at', { ascending: false })
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error fetching token update:', error);
-      return;
-    }
-
-    if (data?.updated_at) {
-      console.log('Token update found:', data.updated_at);
-      setTokenUpdatedAt(data.updated_at);
-    } else {
-      console.log('No token update found');
-      setTokenUpdatedAt(null);
-    }
-  };
+  const [tokenValidity, setTokenValidity] = useState<{ remainingDays: number; updateDate: Date | null }>({
+    remainingDays: 0,
+    updateDate: null
+  });
 
   useEffect(() => {
-    fetchTokenUpdate();
-    
+    const fetchTokenValidity = async () => {
+      const { data, error } = await supabase
+        .from('secrets')
+        .select('updated_at')
+        .eq('key', 'GOOGLE_REFRESH_TOKEN')
+        .order('updated_at', { ascending: false })
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching token:', error);
+        return;
+      }
+
+      if (data?.updated_at) {
+        const updateDate = new Date(data.updated_at);
+        const now = new Date();
+        const daysSinceUpdate = differenceInDays(now, updateDate);
+        const remainingDays = Math.max(0, 7 - daysSinceUpdate);
+
+        setTokenValidity({
+          remainingDays,
+          updateDate
+        });
+      } else {
+        setTokenValidity({
+          remainingDays: 0,
+          updateDate: null
+        });
+      }
+    };
+
+    fetchTokenValidity();
+
+    // Subscribe to token updates
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('token-updates')
       .on(
         'postgres_changes',
         {
@@ -60,10 +73,7 @@ const Index = () => {
           table: 'secrets',
           filter: 'key=eq.GOOGLE_REFRESH_TOKEN'
         },
-        () => {
-          console.log('Token update detected, refreshing...');
-          fetchTokenUpdate();
-        }
+        () => fetchTokenValidity()
       )
       .subscribe();
 
@@ -74,7 +84,6 @@ const Index = () => {
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
-    console.log('Files selected:', newFiles.map(f => ({ name: f.name, type: f.type })));
   };
 
   const handleProcessClick = () => {
@@ -95,7 +104,6 @@ const Index = () => {
   };
 
   const handleProcess = async () => {
-    console.log('Starting processing of files...');
     const result = await processFiles(files);
     
     if (result.folderLink) {
@@ -139,10 +147,7 @@ const Index = () => {
         }
       });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       toast.success('Folder deleted successfully');
       setFolderLink('');
     } catch (error) {
@@ -153,54 +158,33 @@ const Index = () => {
 
   const handleReview = (index: number) => {
     if (!processedData) return;
-    
     const itemToReview = processedData[index];
     setReviewData(prev => [...prev, itemToReview]);
-    
     const newProcessedData = processedData.filter((_, i) => i !== index);
     setProcessedData(newProcessedData);
   };
 
   const handleDataUpdate = (index: number, updatedData: Partial<ExtractedData>) => {
     if (!processedData) return;
-    
     const newData = [...processedData];
     newData[index] = { ...newData[index], ...updatedData };
     setProcessedData(newData);
   };
 
   const renderTokenStatus = () => {
-    console.log('Rendering token status. Current tokenUpdatedAt:', tokenUpdatedAt);
-    
-    if (!tokenUpdatedAt) {
-      return (
-        <span className="text-sm text-gray-500">
-          No token available
-        </span>
-      );
+    if (!tokenValidity.updateDate) {
+      return <span className="text-sm text-gray-500">No token available</span>;
     }
 
-    const updateDate = new Date(tokenUpdatedAt);
-    const now = new Date();
-    const daysSinceUpdate = differenceInDays(now, updateDate);
-    const remainingDays = 7 - daysSinceUpdate;
-    const isExpired = remainingDays <= 0;
-    const formattedDate = format(updateDate, 'MMM dd, yyyy HH:mm');
-
-    console.log('Token status calculation:', {
-      updateDate,
-      now,
-      daysSinceUpdate,
-      remainingDays,
-      isExpired
-    });
+    const formattedDate = format(tokenValidity.updateDate, 'MMM dd, yyyy HH:mm');
+    const isExpired = tokenValidity.remainingDays === 0;
 
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger>
             <span className={`inline-flex items-center gap-1 text-sm ${isExpired ? 'text-red-500' : 'text-green-500'}`}>
-              {isExpired ? 'Token expired' : `Valid for ${remainingDays} days`}
+              {isExpired ? 'Token expired' : `Valid for ${tokenValidity.remainingDays} days`}
             </span>
           </TooltipTrigger>
           <TooltipContent>
@@ -275,10 +259,7 @@ const Index = () => {
 
         <UpdateTokenDialog
           isOpen={isUpdateTokenDialogOpen}
-          onClose={() => {
-            setIsUpdateTokenDialogOpen(false);
-            fetchTokenUpdate();
-          }}
+          onClose={() => setIsUpdateTokenDialogOpen(false)}
         />
 
         <ProcessingStatus
