@@ -14,7 +14,7 @@ import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
 import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -23,28 +23,28 @@ const Index = () => {
   const { processedData, setProcessedData, isProcessing, processFiles } = useFileProcessor();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isUpdateTokenDialogOpen, setIsUpdateTokenDialogOpen] = useState(false);
-  const [tokenExpiration, setTokenExpiration] = useState<string | null>(null);
+  const [tokenUpdatedAt, setTokenUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchTokenExpiration = async () => {
+    const fetchTokenUpdate = async () => {
       const { data, error } = await supabase
-        .from('token_updates')
-        .select('expires_at')
-        .eq('token_type', 'google_refresh')
+        .from('secrets')
+        .select('updated_at')
+        .eq('key', 'GOOGLE_REFRESH_TOKEN')
         .order('updated_at', { ascending: false })
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching token expiration:', error);
+        console.error('Error fetching token update:', error);
         return;
       }
 
-      if (data?.expires_at) {
-        setTokenExpiration(data.expires_at);
+      if (data?.updated_at) {
+        setTokenUpdatedAt(data.updated_at);
       }
     };
 
-    fetchTokenExpiration();
+    fetchTokenUpdate();
   }, [isUpdateTokenDialogOpen]);
 
   const handleFilesSelected = (newFiles: File[]) => {
@@ -145,23 +145,25 @@ const Index = () => {
   };
 
   const renderTokenStatus = () => {
-    if (!tokenExpiration) return null;
+    if (!tokenUpdatedAt) return null;
 
-    const expirationDate = new Date(tokenExpiration);
+    const updateDate = new Date(tokenUpdatedAt);
     const now = new Date();
-    const isExpired = expirationDate < now;
-    const formattedDate = format(expirationDate, 'MMM dd, yyyy HH:mm');
+    const daysSinceUpdate = differenceInDays(now, updateDate);
+    const remainingDays = 7 - daysSinceUpdate;
+    const isExpired = remainingDays <= 0;
+    const formattedDate = format(updateDate, 'MMM dd, yyyy HH:mm');
 
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger>
             <span className={`inline-flex items-center gap-1 text-sm ${isExpired ? 'text-red-500' : 'text-green-500'}`}>
-              {isExpired ? 'Token expired' : 'Token valid'}
+              {isExpired ? 'Token expired' : `Valid for ${remainingDays} days`}
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Token expires: {formattedDate}</p>
+            <p>Token updated: {formattedDate}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
