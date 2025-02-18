@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,21 +17,33 @@ serve(async (req) => {
     const { operation, token } = await req.json();
     console.log(`Processing ${operation} operation`);
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-    );
-
     switch (operation) {
-      case 'updateRefreshToken':
-        // Update the refresh token in Supabase secrets
-        await supabaseAdmin.functions.config.set([
-          { name: 'GOOGLE_REFRESH_TOKEN', value: token }
-        ]);
+      case 'updateRefreshToken': {
+        // Update the refresh token using Supabase Edge Function secrets API
+        const response = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/config`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              name: 'GOOGLE_REFRESH_TOKEN',
+              value: token,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to update token: ${await response.text()}`);
+        }
+
         return new Response(
           JSON.stringify({ success: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
 
       default:
         throw new Error(`Unknown operation: ${operation}`);
