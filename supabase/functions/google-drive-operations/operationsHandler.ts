@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -151,7 +150,7 @@ async function getAccessToken() {
   return data.access_token;
 }
 
-async function handleOperation(operation: string, payload: any) {
+export async function handleOperation(operation: string, payload: any) {
   console.log(`Handling operation: ${operation}`);
   
   const accessToken = await getAccessToken();
