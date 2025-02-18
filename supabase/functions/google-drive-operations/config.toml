@@ -5,4 +5,4 @@ project_id = "knlytzqbcgiadfbdhzjq"
 enabled = true
 
 [api.config]
-env_vars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]
+env_vars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "PROJECT_ID"]
