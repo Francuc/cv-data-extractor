@@ -14,7 +14,7 @@ import { UpdateTokenDialog } from '@/components/UpdateTokenDialog';
 import { ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { format, differenceInDays } from 'date-fns';
+import { format } from 'date-fns';
 
 const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -30,29 +30,42 @@ const Index = () => {
 
   useEffect(() => {
     const fetchTokenValidity = async () => {
+      console.log('[Token] Fetching token validity...');
+      
       const { data, error } = await supabase
         .from('secrets')
         .select('updated_at')
         .eq('key', 'GOOGLE_REFRESH_TOKEN')
-        .order('updated_at', { ascending: false })
         .maybeSingle();
 
       if (error) {
-        console.error('Error fetching token:', error);
+        console.error('[Token] Error fetching token:', error);
         return;
       }
 
+      console.log('[Token] Raw data from database:', data);
+
       if (data?.updated_at) {
-        const updateDate = new Date(data.updated_at);
+        // Ensure proper UTC parsing by appending 'Z' if not present
+        const updateDate = new Date(data.updated_at.endsWith('Z') ? data.updated_at : data.updated_at + 'Z');
         const now = new Date();
-        const daysSinceUpdate = differenceInDays(now, updateDate);
+        
+        console.log('[Token] Update date (UTC):', updateDate.toISOString());
+        console.log('[Token] Current date (UTC):', now.toISOString());
+        
+        // Calculate days difference using milliseconds for more precise calculation
+        const daysSinceUpdate = Math.floor((now.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         const remainingDays = Math.max(0, 7 - daysSinceUpdate);
+        
+        console.log('[Token] Days since update:', daysSinceUpdate);
+        console.log('[Token] Remaining days:', remainingDays);
 
         setTokenValidity({
           remainingDays,
           updateDate
         });
       } else {
+        console.log('[Token] No token data found in database');
         setTokenValidity({
           remainingDays: 0,
           updateDate: null
@@ -73,11 +86,17 @@ const Index = () => {
           table: 'secrets',
           filter: 'key=eq.GOOGLE_REFRESH_TOKEN'
         },
-        () => fetchTokenValidity()
+        (payload) => {
+          console.log('[Token] Received real-time update:', payload);
+          fetchTokenValidity();
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Token] Subscription status:', status);
+      });
 
     return () => {
+      console.log('[Token] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, []);
@@ -172,12 +191,14 @@ const Index = () => {
   };
 
   const renderTokenStatus = () => {
+    console.log('[Token] Rendering token status:', tokenValidity);
+    
     if (!tokenValidity.updateDate) {
       return <span className="text-sm text-gray-500">No token available</span>;
     }
 
     const formattedDate = format(tokenValidity.updateDate, 'MMM dd, yyyy HH:mm');
-    const isExpired = tokenValidity.remainingDays === 0;
+    const isExpired = tokenValidity.remainingDays <= 0;
 
     return (
       <TooltipProvider>
