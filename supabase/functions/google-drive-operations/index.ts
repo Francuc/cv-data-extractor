@@ -19,26 +19,11 @@ serve(async (req) => {
 
     switch (operation) {
       case 'updateRefreshToken': {
-        // Update the refresh token using Supabase Edge Function secrets API
-        const response = await fetch(
-          `${Deno.env.get('SUPABASE_URL')}/functions/v1/config`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            },
-            body: JSON.stringify({
-              name: 'GOOGLE_REFRESH_TOKEN',
-              value: token,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to update token: ${await response.text()}`);
-        }
-
+        // Simply store the token in the function's environment
+        Deno.env.set('GOOGLE_REFRESH_TOKEN', token);
+        
+        console.log('Token updated successfully');
+        
         return new Response(
           JSON.stringify({ success: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
