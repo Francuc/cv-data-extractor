@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { DataPreview } from '@/components/DataPreview';
@@ -25,27 +24,53 @@ const Index = () => {
   const [isUpdateTokenDialogOpen, setIsUpdateTokenDialogOpen] = useState(false);
   const [tokenUpdatedAt, setTokenUpdatedAt] = useState<string | null>(null);
 
+  const fetchTokenUpdate = async () => {
+    console.log('Fetching token update...');
+    const { data, error } = await supabase
+      .from('secrets')
+      .select('updated_at')
+      .eq('key', 'GOOGLE_REFRESH_TOKEN')
+      .order('updated_at', { ascending: false })
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching token update:', error);
+      return;
+    }
+
+    if (data?.updated_at) {
+      console.log('Token update found:', data.updated_at);
+      setTokenUpdatedAt(data.updated_at);
+    } else {
+      console.log('No token update found');
+      setTokenUpdatedAt(null);
+    }
+  };
+
   useEffect(() => {
-    const fetchTokenUpdate = async () => {
-      const { data, error } = await supabase
-        .from('secrets')
-        .select('updated_at')
-        .eq('key', 'GOOGLE_REFRESH_TOKEN')
-        .order('updated_at', { ascending: false })
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching token update:', error);
-        return;
-      }
-
-      if (data?.updated_at) {
-        setTokenUpdatedAt(data.updated_at);
-      }
-    };
-
     fetchTokenUpdate();
-  }, [isUpdateTokenDialogOpen]);
+    
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'secrets',
+          filter: 'key=eq.GOOGLE_REFRESH_TOKEN'
+        },
+        () => {
+          console.log('Token update detected, refreshing...');
+          fetchTokenUpdate();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handleFilesSelected = (newFiles: File[]) => {
     setFiles(newFiles);
@@ -145,6 +170,8 @@ const Index = () => {
   };
 
   const renderTokenStatus = () => {
+    console.log('Rendering token status. Current tokenUpdatedAt:', tokenUpdatedAt);
+    
     if (!tokenUpdatedAt) {
       return (
         <span className="text-sm text-gray-500">
@@ -159,6 +186,14 @@ const Index = () => {
     const remainingDays = 7 - daysSinceUpdate;
     const isExpired = remainingDays <= 0;
     const formattedDate = format(updateDate, 'MMM dd, yyyy HH:mm');
+
+    console.log('Token status calculation:', {
+      updateDate,
+      now,
+      daysSinceUpdate,
+      remainingDays,
+      isExpired
+    });
 
     return (
       <TooltipProvider>
@@ -240,7 +275,10 @@ const Index = () => {
 
         <UpdateTokenDialog
           isOpen={isUpdateTokenDialogOpen}
-          onClose={() => setIsUpdateTokenDialogOpen(false)}
+          onClose={() => {
+            setIsUpdateTokenDialogOpen(false);
+            fetchTokenUpdate();
+          }}
         />
 
         <ProcessingStatus
