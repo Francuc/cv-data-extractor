@@ -1,6 +1,11 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { corsHeaders } from './googleDriveUtils.ts';
-import { handleUploadFiles } from './operationsHandler.ts';
+import { handleOperation } from './operationsHandler.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -9,25 +14,15 @@ serve(async (req) => {
   }
 
   try {
-    const { operation, files } = await req.json();
+    const { operation, files, token } = await req.json();
     console.log(`Processing ${operation} operation`);
 
-    if (operation === 'uploadFiles') {
-      if (!files || !Array.isArray(files)) {
-        throw new Error('No files data provided or invalid format');
-      }
-
-      console.log('Processing upload for', files.length, 'files');
-      const result = await handleUploadFiles(files);
-
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      );
-    }
-
-    throw new Error(`Unknown operation: ${operation}`);
-
+    const result = await handleOperation(operation, { files, token });
+    
+    return new Response(
+      JSON.stringify(result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    );
   } catch (error) {
     console.error('Operation failed:', error);
     return new Response(
