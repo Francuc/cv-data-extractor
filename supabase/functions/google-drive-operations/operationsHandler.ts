@@ -47,6 +47,50 @@ export const createFolder = async (folderName: string): Promise<string> => {
   }
 };
 
+export const uploadFiles = async (files: any[]): Promise<{ fileLinks: string[], folderLink: string }> => {
+  try {
+    // Create a folder for the batch
+    const folderName = `CV_Uploads_${new Date().toISOString()}`;
+    const folderLink = await createFolder(folderName);
+    const folderId = folderLink.split('/').pop();
+
+    const uploadPromises = files.map(async (fileData) => {
+      const { fileName, fileContent, mimeType } = fileData;
+      
+      // Convert base64 to binary
+      const binaryContent = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
+
+      const fileMetadata = {
+        name: fileName,
+        parents: [folderId]
+      };
+
+      const media = {
+        mimeType: mimeType,
+        body: binaryContent
+      };
+
+      const file = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, webViewLink'
+      });
+
+      return file.data.webViewLink || '';
+    });
+
+    const fileLinks = await Promise.all(uploadPromises);
+    
+    return {
+      fileLinks,
+      folderLink
+    };
+  } catch (error) {
+    console.error('Upload files error:', error);
+    throw error;
+  }
+};
+
 export const deleteFolder = async (folderId: string): Promise<{ success: boolean }> => {
   try {
     await drive.files.delete({
@@ -73,6 +117,8 @@ export const updateRefreshToken = async (token: string): Promise<{ success: bool
 
 export const handleOperation = async (operation: string, payload: any): Promise<any> => {
   switch (operation) {
+    case 'uploadFiles':
+      return await uploadFiles(payload.files);
     case 'createFolder':
       return await createFolder(payload.folderName);
     case 'deleteFolder':

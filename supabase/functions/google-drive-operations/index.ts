@@ -17,8 +17,16 @@ serve(async (req) => {
   }
 
   try {
-    const { operation, ...payload } = await req.json();
-    console.log(`Processing ${operation} operation with payload:`, payload);
+    const { operation, files, ...payload } = await req.json();
+    console.log(`Processing ${operation} operation`);
+
+    if (operation === 'uploadFiles') {
+      if (!files || !Array.isArray(files)) {
+        throw new Error('No files data provided or invalid format');
+      }
+      console.log('Processing upload for', files.length, 'files');
+      payload.files = files;
+    }
 
     const result = await handleOperation(operation, payload);
     console.log(`Operation ${operation} completed successfully:`, result);
