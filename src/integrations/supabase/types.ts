@@ -60,6 +60,24 @@ export type Database = {
         }
         Relationships: []
       }
+      secrets: {
+        Row: {
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       token_updates: {
         Row: {
           expires_at: string | null
