@@ -1,4 +1,3 @@
-
 import { ExtractedData } from '@/types/data';
 import { extractNameFromFileName } from './nameExtraction';
 import { extractPhoneNumber } from './phoneExtraction';
@@ -9,9 +8,8 @@ import {
   extractTextFromRTF
 } from './textExtraction';
 
-export const extractDataFromFile = async (file: File): Promise<ExtractedData> => {
+export const extractDataFromFile = async (file: File): Promise<ExtractedData | null> => {
   try {
-    console.log(`Starting data extraction for file: ${file.name} (${file.type})`);
     let text = '';
     
     // Check both file.type and file extension for RTF files
@@ -29,31 +27,17 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData> =>
       text = await extractTextFromRTF(file);
     } else {
       console.warn('Unsupported file type:', file.type);
-      return {
-        firstName: '',
-        surname: '',
-        phoneNumber: '',
-        fileName: file.name,
-        rawText: ''
-      };
+      return null;
     }
 
     if (!text) {
       console.warn('No text extracted from file');
-      return {
-        firstName: '',
-        surname: '',
-        phoneNumber: '',
-        fileName: file.name,
-        rawText: ''
-      };
+      return null;
     }
 
-    console.log('Extracting metadata from file name and content');
     const { firstName, surname } = extractNameFromFileName(file.name);
     const phoneNumber = extractPhoneNumber(text);
     
-    console.log('Data extraction completed successfully');
     return {
       firstName,
       surname,
@@ -63,13 +47,6 @@ export const extractDataFromFile = async (file: File): Promise<ExtractedData> =>
     };
   } catch (error) {
     console.error('Error processing file:', error);
-    // Return empty data instead of null to maintain type safety
-    return {
-      firstName: '',
-      surname: '',
-      phoneNumber: '',
-      fileName: file.name,
-      rawText: ''
-    };
+    throw error;
   }
 };

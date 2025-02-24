@@ -1,4 +1,3 @@
-
 import {
   Table,
   TableBody,
@@ -34,11 +33,11 @@ export const ReviewList = ({ data }: ReviewListProps) => {
           <TableBody>
             {data.map((item, index) => (
               <TableRow key={index}>
-                <TableCell>{item.firstName || 'N/A'}</TableCell>
-                <TableCell>{item.surname || 'N/A'}</TableCell>
-                <TableCell>{item.phoneNumber || 'N/A'}</TableCell>
+                <TableCell>{item.firstName}</TableCell>
+                <TableCell>{item.surname}</TableCell>
+                <TableCell>{item.phoneNumber}</TableCell>
                 <TableCell className="text-gray-500 text-sm">
-                  {item.fileName || 'Unknown'}
+                  {item.fileName}
                 </TableCell>
                 <TableCell>
                   {item.fileLink ? (
@@ -51,7 +50,7 @@ export const ReviewList = ({ data }: ReviewListProps) => {
                       View <ExternalLink className="h-4 w-4" />
                     </a>
                   ) : (
-                    <span className="text-yellow-500">Processing...</span>
+                    <span className="text-gray-500">No link available</span>
                   )}
                 </TableCell>
               </TableRow>

@@ -1,4 +1,3 @@
-
 import {
   Table,
   TableBody,
@@ -21,6 +20,7 @@ interface DataPreviewProps {
 export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
   const copyToClipboard = async () => {
     try {
+      // Check if we have clipboard permissions
       if (!navigator.clipboard) {
         throw new Error('Clipboard API not available');
       }
@@ -34,6 +34,7 @@ export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
     } catch (error) {
       console.error('Clipboard error:', error);
       
+      // Fallback method using textarea
       try {
         const textarea = document.createElement('textarea');
         const formattedData = data
@@ -48,7 +49,7 @@ export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
         toast.success('Data copied to clipboard');
       } catch (fallbackError) {
         console.error('Fallback clipboard error:', fallbackError);
-        toast.error('Unable to copy data to clipboard');
+        toast.error('Unable to copy data to clipboard. Please try manually selecting and copying the data.');
       }
     }
   };
@@ -81,11 +82,11 @@ export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
           <TableBody>
             {data.map((item, index) => (
               <TableRow key={index}>
-                <TableCell>{item.firstName || 'N/A'}</TableCell>
-                <TableCell>{item.surname || 'N/A'}</TableCell>
-                <TableCell>{item.phoneNumber || 'N/A'}</TableCell>
+                <TableCell>{item.firstName}</TableCell>
+                <TableCell>{item.surname}</TableCell>
+                <TableCell>{item.phoneNumber}</TableCell>
                 <TableCell className="text-gray-500 text-sm">
-                  {item.fileName || 'Unknown'}
+                  {item.fileName}
                 </TableCell>
                 <TableCell>
                   {item.fileLink ? (
@@ -98,7 +99,7 @@ export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
                       View <ExternalLink className="h-4 w-4" />
                     </a>
                   ) : (
-                    <span className="text-yellow-500">Processing...</span>
+                    <span className="text-gray-500">No link available</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -106,7 +107,6 @@ export const DataPreview = ({ data, onReview }: DataPreviewProps) => {
                     variant="ghost"
                     size="sm"
                     onClick={() => onReview(index)}
-                    title="Review Data"
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
