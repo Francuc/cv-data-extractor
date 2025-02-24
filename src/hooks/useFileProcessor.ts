@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { ExtractedData, ProcessingResult } from '@/types/data';
 import { extractDataFromFile } from '@/utils/fileProcessing';
@@ -12,30 +13,26 @@ export const useFileProcessor = () => {
     const results: ExtractedData[] = [];
 
     try {
-      // Process files one by one to show accurate progress
+      // First extract text data for analysis
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const data = await extractDataFromFile(file);
-        const buffer = await file.arrayBuffer();
-        const base64Content = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
-
         results.push({
           ...data,
           fileName: file.name
         });
-
-        // Update processed count after each file
         setProcessedData(results);
       }
 
       // Prepare all files data for upload
       const filesData = await Promise.all(files.map(async (file, index) => {
+        // Convert file to base64 properly handling binary data
         const buffer = await file.arrayBuffer();
-        const base64Content = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
+        const bytes = new Uint8Array(buffer);
+        const binary = bytes.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+        const base64Content = btoa(binary);
+
+        console.log(`Processing ${file.name}, size: ${file.size} bytes`);
 
         return {
           fileName: file.name,
@@ -44,6 +41,8 @@ export const useFileProcessor = () => {
           extractedData: results[index]
         };
       }));
+
+      console.log('Uploading files to Google Drive...');
 
       // Upload all files in one request
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
@@ -67,6 +66,7 @@ export const useFileProcessor = () => {
         fileLink: uploadData.fileLinks[index]
       }));
 
+      console.log('Upload completed successfully');
       setProcessedData(finalResults);
       return {
         data: finalResults,
