@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ExtractedData, ProcessingResult } from '@/types/data';
 import { extractDataFromFile } from '@/utils/fileProcessing';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export const useFileProcessor = () => {
   const [processedData, setProcessedData] = useState<ExtractedData[]>([]);
@@ -54,26 +55,40 @@ export const useFileProcessor = () => {
 
       if (uploadError) {
         console.error('Error uploading files:', uploadError);
+        toast.error('Failed to upload some files to Google Drive');
         return {
           data: results,
           folderLink: undefined
         };
       }
 
+      if (!uploadData || !uploadData.fileLinks || !Array.isArray(uploadData.fileLinks)) {
+        console.error('Invalid response format from upload:', uploadData);
+        toast.error('Received invalid response from server');
+        return {
+          data: results,
+          folderLink: undefined
+        };
+      }
+
+      console.log('Upload response:', uploadData);
+
       // Match the uploaded files with their data
       const finalResults = results.map((result, index) => ({
         ...result,
-        fileLink: uploadData.fileLinks[index]
+        fileLink: uploadData.fileLinks[index] || undefined
       }));
 
-      console.log('Upload completed successfully');
+      console.log('Final results with links:', finalResults);
       setProcessedData(finalResults);
+
       return {
         data: finalResults,
-        folderLink: uploadData?.folderLink
+        folderLink: uploadData.folderLink
       };
     } catch (error) {
       console.error('Error processing files:', error);
+      toast.error('An error occurred while processing files');
       return {
         data: [],
         folderLink: undefined
