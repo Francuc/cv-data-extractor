@@ -72,6 +72,9 @@ async function createFolder(accessToken: string, folderName: string) {
   }
 }
 
+// Add delay function for rate limiting
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function uploadFile(accessToken: string, file: any, folderId: string) {
   console.log(`Starting upload for file: ${file.fileName} to folder: ${folderId}`);
   console.log('File details:', { 
@@ -127,6 +130,9 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
     if (!uploadedFile.id) {
       throw new Error('File upload succeeded but no file ID was returned');
     }
+
+    // Add delay before setting permissions to avoid rate limiting
+    await delay(1000);
 
     console.log('Setting file permissions...');
     // Make the file accessible via link
@@ -213,11 +219,18 @@ export async function handleOperation(operation: string, payload: any) {
         const folder = await createFolder(accessToken, folderName);
         console.log('Folder created:', folder);
 
-        // Upload all files to the folder
-        console.log('Starting file uploads, total files:', files.length);
-        const uploadPromises = files.map((file: any) => uploadFile(accessToken, file, folder.id));
-
-        const fileLinks = await Promise.all(uploadPromises);
+        // Process files sequentially with delays to avoid rate limiting
+        console.log('Starting sequential file uploads, total files:', files.length);
+        const fileLinks = [];
+        for (const file of files) {
+          // Add delay between file uploads
+          if (fileLinks.length > 0) {
+            await delay(2000); // Wait 2 seconds between files
+          }
+          
+          const link = await uploadFile(accessToken, file, folder.id);
+          fileLinks.push(link);
+        }
         console.log('All files uploaded successfully. Links:', fileLinks);
 
         return { 
@@ -286,3 +299,4 @@ serve(async (req) => {
     );
   }
 });
+
