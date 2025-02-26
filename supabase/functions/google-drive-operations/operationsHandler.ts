@@ -23,16 +23,13 @@ async function createFolder(accessToken: string, folderName: string) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Create folder response error:', errorText);
       throw new Error(`Failed to create folder: ${response.statusText}`);
     }
 
     const folder = await response.json();
-    console.log('Folder created successfully:', folder);
     
     // Make the folder accessible via link
-    const permissionResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -44,27 +41,21 @@ async function createFolder(accessToken: string, folderName: string) {
       }),
     });
 
-    if (!permissionResponse.ok) {
-      const errorText = await permissionResponse.text();
-      console.error('Folder permission response error:', errorText);
-      throw new Error(`Failed to set folder permissions: ${permissionResponse.statusText}`);
-    }
-
     // Get the webViewLink for the folder
-    const folderResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}?fields=webViewLink`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+    const folderResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${folder.id}?fields=webViewLink`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    );
 
     if (!folderResponse.ok) {
-      const errorText = await folderResponse.text();
-      console.error('Get folder webViewLink error:', errorText);
       throw new Error(`Failed to get folder webViewLink: ${folderResponse.statusText}`);
     }
 
     const folderData = await folderResponse.json();
-    console.log('Folder data with webViewLink:', folderData);
     return { ...folder, webViewLink: folderData.webViewLink };
   } catch (error) {
     console.error('Create folder error:', error);
@@ -75,11 +66,7 @@ async function createFolder(accessToken: string, folderName: string) {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function uploadFile(accessToken: string, file: any, folderId: string) {
-  console.log(`Starting upload for file: ${file.fileName} to folder: ${folderId}`);
-  console.log('File details:', { 
-    size: file.fileContent.length,
-    mimeType: file.mimeType
-  });
+  console.log(`Starting upload for file: ${file.fileName}`);
   
   try {
     const metadata = {
@@ -104,35 +91,31 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       file.fileContent +
       close_delim;
 
-    console.log('Sending upload request to Google Drive...');
-    
-    // Upload the file and request webViewLink in the same request
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartRequestBody
-    });
+    const uploadResponse = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: multipartRequestBody
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Upload response error:', errorText);
-      throw new Error(`Failed to upload file: ${response.statusText}`);
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload file: ${uploadResponse.statusText}`);
     }
 
-    const uploadedFile = await response.json();
-    console.log('File upload response:', uploadedFile);
+    const uploadedFile = await uploadResponse.json();
 
     if (!uploadedFile.id) {
       throw new Error('File upload succeeded but no file ID was returned');
     }
 
-    await delay(1000);
-
-    console.log('Setting file permissions...');
-    const permissionResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}/permissions`, {
+    // Set file permissions with a small delay
+    await delay(500);
+    await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}/permissions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -144,21 +127,15 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       }),
     });
 
-    if (!permissionResponse.ok) {
-      console.error('Permission response error:', await permissionResponse.text());
-      throw new Error('Failed to set file permissions');
-    }
-
-    console.log('File upload completed with link:', uploadedFile.webViewLink);
+    console.log('File uploaded successfully:', uploadedFile.webViewLink);
     return uploadedFile.webViewLink;
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('Upload error:', error);
     throw error;
   }
 }
 
 async function getAccessToken() {
-  console.log('Getting access token...');
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
   const refreshToken = Deno.env.get('GOOGLE_REFRESH_TOKEN');
@@ -181,63 +158,78 @@ async function getAccessToken() {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Token refresh error:', errorText);
     throw new Error('Failed to get access token');
   }
 
   const data = await response.json();
-  console.log('Access token obtained successfully');
   return data.access_token;
 }
 
+let currentFolderId: string | null = null;
+
 export async function handleOperation(operation: string, payload: any) {
   console.log(`Starting operation: ${operation}`);
-  console.log('Payload:', payload);
   
   const accessToken = await getAccessToken();
   
   switch (operation) {
     case 'uploadFiles': {
-      console.log('Starting batch file upload process');
-      const { files } = payload;
+      console.log('Processing batch upload');
+      const { files, isLastBatch, startIndex } = payload;
       
       try {
-        // Create a folder for the batch
-        const now = new Date();
-        const folderName = `CV_Batch_${now.toISOString().replace(/[:.]/g, '-')}`;
-        console.log('Creating folder:', folderName);
-        
-        const folder = await createFolder(accessToken, folderName);
-        console.log('Folder created:', folder);
+        // Create folder only for first batch
+        if (!currentFolderId) {
+          const now = new Date();
+          const folderName = `CV_Batch_${now.toISOString().replace(/[:.]/g, '-')}`;
+          console.log('Creating new folder:', folderName);
+          
+          const folder = await createFolder(accessToken, folderName);
+          currentFolderId = folder.id;
+          console.log('Created folder:', folder);
+        }
 
-        // Process files sequentially with delays
-        console.log('Starting sequential file uploads, total files:', files.length);
+        // Upload files in current batch
+        console.log(`Processing files ${startIndex + 1}-${startIndex + files.length}`);
         const fileLinks = [];
+        
         for (const file of files) {
-          if (fileLinks.length > 0) {
-            await delay(2000); // Wait 2 seconds between files
+          const link = await uploadFile(accessToken, file, currentFolderId);
+          fileLinks.push(link);
+          console.log(`File ${fileLinks.length}/${files.length} in batch uploaded`);
+          
+          if (fileLinks.length < files.length) {
+            await delay(500); // Small delay between files in same batch
+          }
+        }
+
+        // If this is the last batch, get and reset the folder info
+        let folderLink;
+        if (isLastBatch && currentFolderId) {
+          const folderResponse = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${currentFolderId}?fields=webViewLink`,
+            {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+              },
+            }
+          );
+          
+          if (folderResponse.ok) {
+            const folderData = await folderResponse.json();
+            folderLink = folderData.webViewLink;
           }
           
-          const link = await uploadFile(accessToken, file, folder.id);
-          fileLinks.push(link);
-          console.log(`File ${fileLinks.length}/${files.length} uploaded successfully`);
+          currentFolderId = null; // Reset for next upload session
         }
-        
-        console.log('All files uploaded successfully. Links:', fileLinks);
-        console.log('Folder link:', folder.webViewLink);
 
-        return { 
-          fileLinks,
-          folderLink: folder.webViewLink
-        };
+        return { fileLinks, folderLink };
       } catch (error) {
-        console.error('Error in handleUploadFiles:', error);
+        console.error('Error in batch upload:', error);
         throw error;
       }
     }
     case 'deleteFolder': {
-      console.log('Starting folder deletion process');
       const { folderId } = payload;
       
       try {
@@ -249,12 +241,9 @@ export async function handleOperation(operation: string, payload: any) {
         });
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Delete folder error:', errorText);
           throw new Error(`Failed to delete folder: ${response.statusText}`);
         }
 
-        console.log('Folder deleted successfully');
         return { success: true };
       } catch (error) {
         console.error('Error deleting folder:', error);
@@ -267,7 +256,6 @@ export async function handleOperation(operation: string, payload: any) {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -285,10 +273,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Operation failed:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: error.stack
-      }),
+      JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

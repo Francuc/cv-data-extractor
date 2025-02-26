@@ -5,25 +5,26 @@ import { extractDataFromFile } from '@/utils/fileProcessing';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+const BATCH_SIZE = 5; // Process 5 files at a time
+
 export const useFileProcessor = () => {
   const [processedData, setProcessedData] = useState<ExtractedData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const processFiles = async (files: File[]): Promise<ProcessingResult> => {
-    setIsProcessing(true);
+  const processFileBatch = async (
+    files: File[],
+    startIndex: number,
+    batchSize: number
+  ): Promise<{ data: ExtractedData[]; folderLink?: string }> => {
+    const batchEnd = Math.min(startIndex + batchSize, files.length);
+    const currentBatch = files.slice(startIndex, batchEnd);
     const results: ExtractedData[] = [];
 
     try {
-      // Process files one by one to show accurate progress
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      // Process current batch of files
+      for (const file of currentBatch) {
         const data = await extractDataFromFile(file);
-        const buffer = await file.arrayBuffer();
-        const base64Content = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
-
-        if (data) {  // Only push if data was successfully extracted
+        if (data) {
           results.push({
             ...data,
             fileName: file.name
@@ -31,10 +32,10 @@ export const useFileProcessor = () => {
         }
       }
 
-      console.log('Processed files locally:', results);
+      console.log(`Processed batch ${startIndex}-${batchEnd} locally:`, results);
 
-      // Prepare all files data for upload
-      const filesData = await Promise.all(files.map(async (file, index) => {
+      // Prepare batch files data for upload
+      const filesData = await Promise.all(currentBatch.map(async (file, index) => {
         const buffer = await file.arrayBuffer();
         const base64Content = btoa(
           new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
@@ -48,26 +49,27 @@ export const useFileProcessor = () => {
         };
       }));
 
-      console.log('Uploading files to Google Drive...');
+      console.log(`Uploading batch ${startIndex}-${batchEnd} to Google Drive...`);
 
-      // Upload all files in one request
+      // Upload current batch
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
         body: {
           operation: 'uploadFiles',
-          files: filesData
+          files: filesData,
+          isLastBatch: batchEnd === files.length,
+          startIndex
         }
       });
 
       if (uploadError) {
-        console.error('Error uploading files:', uploadError);
-        toast.error('Failed to upload files to Google Drive');
+        console.error('Error uploading batch:', uploadError);
+        toast.error(`Failed to upload batch ${startIndex + 1}-${batchEnd}`);
         return {
-          data: results,
-          folderLink: undefined
+          data: results
         };
       }
 
-      console.log('Upload response:', uploadData);
+      console.log('Batch upload response:', uploadData);
 
       // Match the uploaded files with their data
       const finalResults = results.map((result, index) => ({
@@ -75,19 +77,60 @@ export const useFileProcessor = () => {
         fileLink: uploadData.fileLinks[index]
       }));
 
-      console.log('Final results with file links:', finalResults);
+      console.log('Final results for batch with file links:', finalResults);
 
-      setProcessedData(finalResults);
+      // Return results and folderLink (only for last batch)
       return {
         data: finalResults,
-        folderLink: uploadData?.folderLink
+        folderLink: batchEnd === files.length ? uploadData?.folderLink : undefined
       };
     } catch (error) {
-      console.error('Error processing files:', error);
+      console.error(`Error processing batch ${startIndex}-${batchEnd}:`, error);
+      toast.error(`Error processing batch ${startIndex + 1}-${batchEnd}`);
+      return { data: [] };
+    }
+  };
+
+  const processFiles = async (files: File[]): Promise<ProcessingResult> => {
+    setIsProcessing(true);
+    const allResults: ExtractedData[] = [];
+    let folderLink: string | undefined;
+
+    try {
+      // Process files in batches
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const { data: batchResults, folderLink: batchFolderLink } = await processFileBatch(
+          files,
+          i,
+          BATCH_SIZE
+        );
+        
+        allResults.push(...batchResults);
+        
+        // Save the folder link from the last batch
+        if (batchFolderLink) {
+          folderLink = batchFolderLink;
+        }
+
+        // Update UI with progress
+        setProcessedData(prevData => [...prevData, ...batchResults]);
+
+        // Add a small delay between batches to avoid overwhelming the server
+        if (i + BATCH_SIZE < files.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      return {
+        data: allResults,
+        folderLink
+      };
+    } catch (error) {
+      console.error('Error in batch processing:', error);
       toast.error('Error processing files');
       return {
-        data: [],
-        folderLink: undefined
+        data: allResults,
+        folderLink
       };
     } finally {
       setIsProcessing(false);
