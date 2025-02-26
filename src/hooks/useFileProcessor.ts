@@ -1,7 +1,9 @@
+
 import { useState } from 'react';
 import { ExtractedData, ProcessingResult } from '@/types/data';
 import { extractDataFromFile } from '@/utils/fileProcessing';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export const useFileProcessor = () => {
   const [processedData, setProcessedData] = useState<ExtractedData[]>([]);
@@ -21,14 +23,15 @@ export const useFileProcessor = () => {
           new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
         );
 
-        results.push({
-          ...data,
-          fileName: file.name
-        });
-
-        // Update processed count after each file
-        setProcessedData(results);
+        if (data) {  // Only push if data was successfully extracted
+          results.push({
+            ...data,
+            fileName: file.name
+          });
+        }
       }
+
+      console.log('Processed files locally:', results);
 
       // Prepare all files data for upload
       const filesData = await Promise.all(files.map(async (file, index) => {
@@ -45,6 +48,8 @@ export const useFileProcessor = () => {
         };
       }));
 
+      console.log('Uploading files to Google Drive...');
+
       // Upload all files in one request
       const { data: uploadData, error: uploadError } = await supabase.functions.invoke('google-drive-operations', {
         body: {
@@ -55,17 +60,22 @@ export const useFileProcessor = () => {
 
       if (uploadError) {
         console.error('Error uploading files:', uploadError);
+        toast.error('Failed to upload files to Google Drive');
         return {
           data: results,
           folderLink: undefined
         };
       }
 
+      console.log('Upload response:', uploadData);
+
       // Match the uploaded files with their data
       const finalResults = results.map((result, index) => ({
         ...result,
         fileLink: uploadData.fileLinks[index]
       }));
+
+      console.log('Final results with file links:', finalResults);
 
       setProcessedData(finalResults);
       return {
@@ -74,6 +84,7 @@ export const useFileProcessor = () => {
       };
     } catch (error) {
       console.error('Error processing files:', error);
+      toast.error('Error processing files');
       return {
         data: [],
         folderLink: undefined

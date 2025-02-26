@@ -72,7 +72,6 @@ async function createFolder(accessToken: string, folderName: string) {
   }
 }
 
-// Add delay function for rate limiting
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function uploadFile(accessToken: string, file: any, folderId: string) {
@@ -88,7 +87,6 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       parents: [folderId]
     };
 
-    // Create multipart form-data
     const boundary = '-------314159265358979323846';
     const delimiter = "\r\n--" + boundary + "\r\n";
     const close_delim = "\r\n--" + boundary + "--";
@@ -131,11 +129,9 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       throw new Error('File upload succeeded but no file ID was returned');
     }
 
-    // Add delay before setting permissions to avoid rate limiting
     await delay(1000);
 
     console.log('Setting file permissions...');
-    // Make the file accessible via link
     const permissionResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}/permissions`, {
       method: 'POST',
       headers: {
@@ -153,11 +149,7 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       throw new Error('Failed to set file permissions');
     }
 
-    console.log('File upload completed successfully:', {
-      id: uploadedFile.id,
-      webViewLink: uploadedFile.webViewLink
-    });
-    
+    console.log('File upload completed with link:', uploadedFile.webViewLink);
     return uploadedFile.webViewLink;
   } catch (error) {
     console.error('Error uploading file:', error);
@@ -219,19 +211,21 @@ export async function handleOperation(operation: string, payload: any) {
         const folder = await createFolder(accessToken, folderName);
         console.log('Folder created:', folder);
 
-        // Process files sequentially with delays to avoid rate limiting
+        // Process files sequentially with delays
         console.log('Starting sequential file uploads, total files:', files.length);
         const fileLinks = [];
         for (const file of files) {
-          // Add delay between file uploads
           if (fileLinks.length > 0) {
             await delay(2000); // Wait 2 seconds between files
           }
           
           const link = await uploadFile(accessToken, file, folder.id);
           fileLinks.push(link);
+          console.log(`File ${fileLinks.length}/${files.length} uploaded successfully`);
         }
+        
         console.log('All files uploaded successfully. Links:', fileLinks);
+        console.log('Folder link:', folder.webViewLink);
 
         return { 
           fileLinks,
@@ -299,4 +293,3 @@ serve(async (req) => {
     );
   }
 });
-
