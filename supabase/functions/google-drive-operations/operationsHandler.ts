@@ -23,13 +23,16 @@ async function createFolder(accessToken: string, folderName: string) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Create folder response error:', errorText);
       throw new Error(`Failed to create folder: ${response.statusText}`);
     }
 
     const folder = await response.json();
+    console.log('Folder created successfully:', folder);
     
     // Make the folder accessible via link
-    await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
+    const permissionResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}/permissions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -41,6 +44,12 @@ async function createFolder(accessToken: string, folderName: string) {
       }),
     });
 
+    if (!permissionResponse.ok) {
+      const errorText = await permissionResponse.text();
+      console.error('Folder permission response error:', errorText);
+      throw new Error(`Failed to set folder permissions: ${permissionResponse.statusText}`);
+    }
+
     // Get the webViewLink for the folder
     const folderResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${folder.id}?fields=webViewLink`, {
       headers: {
@@ -49,10 +58,13 @@ async function createFolder(accessToken: string, folderName: string) {
     });
 
     if (!folderResponse.ok) {
+      const errorText = await folderResponse.text();
+      console.error('Get folder webViewLink error:', errorText);
       throw new Error(`Failed to get folder webViewLink: ${folderResponse.statusText}`);
     }
 
     const folderData = await folderResponse.json();
+    console.log('Folder data with webViewLink:', folderData);
     return { ...folder, webViewLink: folderData.webViewLink };
   } catch (error) {
     console.error('Create folder error:', error);
@@ -61,7 +73,11 @@ async function createFolder(accessToken: string, folderName: string) {
 }
 
 async function uploadFile(accessToken: string, file: any, folderId: string) {
-  console.log(`Uploading file: ${file.fileName} to folder: ${folderId}`);
+  console.log(`Starting upload for file: ${file.fileName} to folder: ${folderId}`);
+  console.log('File details:', { 
+    size: file.fileContent.length,
+    mimeType: file.mimeType
+  });
   
   try {
     const metadata = {
@@ -87,6 +103,8 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       file.fileContent +
       close_delim;
 
+    console.log('Sending upload request to Google Drive...');
+    
     // Upload the file and request webViewLink in the same request
     const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
       method: 'POST',
@@ -110,6 +128,7 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       throw new Error('File upload succeeded but no file ID was returned');
     }
 
+    console.log('Setting file permissions...');
     // Make the file accessible via link
     const permissionResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadedFile.id}/permissions`, {
       method: 'POST',
@@ -128,7 +147,11 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
       throw new Error('Failed to set file permissions');
     }
 
-    console.log('File uploaded successfully:', uploadedFile);
+    console.log('File upload completed successfully:', {
+      id: uploadedFile.id,
+      webViewLink: uploadedFile.webViewLink
+    });
+    
     return uploadedFile.webViewLink;
   } catch (error) {
     console.error('Error uploading file:', error);
@@ -137,6 +160,7 @@ async function uploadFile(accessToken: string, file: any, folderId: string) {
 }
 
 async function getAccessToken() {
+  console.log('Getting access token...');
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
   const refreshToken = Deno.env.get('GOOGLE_REFRESH_TOKEN');
@@ -165,11 +189,13 @@ async function getAccessToken() {
   }
 
   const data = await response.json();
+  console.log('Access token obtained successfully');
   return data.access_token;
 }
 
 export async function handleOperation(operation: string, payload: any) {
-  console.log(`Handling operation: ${operation}`);
+  console.log(`Starting operation: ${operation}`);
+  console.log('Payload:', payload);
   
   const accessToken = await getAccessToken();
   
